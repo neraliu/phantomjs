@@ -20,6 +20,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #ifndef JSCell_h
 #define JSCell_h
 
@@ -147,6 +154,10 @@ namespace JSC {
             return OBJECT_OFFSETOF(JSCell, m_structure);
         }
 
+#if defined(JSC_TAINTED)
+        virtual void setTainted(unsigned int tainted) {} 
+        virtual unsigned int isTainted() const { return 0; }
+#endif
     protected:
         static const unsigned AnonymousSlotCount = 0;
 

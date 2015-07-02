@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSElement.h"
 
@@ -59,7 +66,11 @@ ASSERT_CLASS_FITS_IN_CELL(JSElement);
 #define THUNK_GENERATOR(generator)
 #endif
 
+#if defined(JSC_TAINTED)
 static const HashTableValue JSElementTableValues[67] =
+#else
+static const HashTableValue JSElementTableValues[66] =
+#endif
 {
     { "tagName", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsElementTagName), (intptr_t)0 THUNK_GENERATOR(0) },
     { "style", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsElementStyle), (intptr_t)0 THUNK_GENERATOR(0) },
@@ -135,6 +146,9 @@ static const HashTableValue JSElementTableValues[67] =
 #endif
 #if ENABLE(FULLSCREEN_API)
     { "onwebkitfullscreenchange", DontDelete | DontEnum, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsElementOnwebkitfullscreenchange), (intptr_t)setJSElementOnwebkitfullscreenchange THUNK_GENERATOR(0) },
+#endif
+#if defined(JSC_TAINTED)
+    { "tainted", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsElementTainted), (intptr_t)0 THUNK_GENERATOR(0) },
 #endif
     { "constructor", DontEnum | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsElementConstructor), (intptr_t)0 THUNK_GENERATOR(0) },
     { 0, 0, 0, 0 THUNK_GENERATOR(0) }
@@ -1140,6 +1154,17 @@ JSValue jsElementOnwebkitfullscreenchange(ExecState* exec, JSValue slotBase, con
     return jsNull();
 }
 
+#endif
+
+#if defined(JSC_TAINTED)
+JSValue jsElementTainted(ExecState* exec, JSValue slotBase, const Identifier&)
+{
+    JSElement* castedThis = static_cast<JSElement*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    Element* imp = static_cast<Element*>(castedThis->impl());
+    JSValue result = jsNumber(imp->tainted());
+    return result;
+}
 #endif
 
 JSValue jsElementConstructor(ExecState* exec, JSValue slotBase, const Identifier&)

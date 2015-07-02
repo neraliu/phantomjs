@@ -21,6 +21,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "UString.h"
 
@@ -54,12 +61,30 @@ namespace JSC {
 extern const double NaN;
 extern const double Inf;
 
+#if defined(JSC_TAINTED)
+
+#if defined(JSC_TAINTED_HASHMAP)
 COMPILE_ASSERT(sizeof(UString) == sizeof(void*), UString_should_stay_small);
+#elif defined(JSC_TAINTED_EXTENDED)
+COMPILE_ASSERT(sizeof(UString) == sizeof(void*) + sizeof(int), UString_should_stay_small);
+#endif
+
+#else
+COMPILE_ASSERT(sizeof(UString) == sizeof(void*), UString_should_stay_small);
+#endif
 
 // Construct a string with UTF-16 data.
 UString::UString(const UChar* characters, unsigned length)
     : m_impl(characters ? StringImpl::create(characters, length) : 0)
 {
+#if defined(JSC_TAINTED)
+#if defined(JSC_TAINTED_HASHMAP)
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+        map->add(getUStringAddr(), 0);
+#elif defined(JSC_TAINTED_EXTENDED)
+	m_tainted = 0;
+#endif
+#endif
 }
 
 // Construct a string with UTF-16 data, from a null-terminated source.
@@ -73,18 +98,42 @@ UString::UString(const UChar* characters)
         ++length;
 
     m_impl = StringImpl::create(characters, length);
+#if defined(JSC_TAINTED)
+#if defined(JSC_TAINTED_HASHMAP)
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+        map->add(getUStringAddr(), 0);
+#elif defined(JSC_TAINTED_EXTENDED)
+	m_tainted = 0;
+#endif
+#endif
 }
 
 // Construct a string with latin1 data.
 UString::UString(const char* characters, unsigned length)
     : m_impl(characters ? StringImpl::create(characters, length) : 0)
 {
+#if defined(JSC_TAINTED)
+#if defined(JSC_TAINTED_HASHMAP)
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+        map->add(getUStringAddr(), 0);
+#elif defined(JSC_TAINTED_EXTENDED)
+	m_tainted = 0;
+#endif
+#endif
 }
 
 // Construct a string with latin1 data, from a null-terminated source.
 UString::UString(const char* characters)
     : m_impl(characters ? StringImpl::create(characters) : 0)
 {
+#if defined(JSC_TAINTED)
+#if defined(JSC_TAINTED_HASHMAP)
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+        map->add(getUStringAddr(), 0);
+#elif defined(JSC_TAINTED_EXTENDED)
+	m_tainted = 0;
+#endif
+#endif
 }
 
 UString UString::number(int i)

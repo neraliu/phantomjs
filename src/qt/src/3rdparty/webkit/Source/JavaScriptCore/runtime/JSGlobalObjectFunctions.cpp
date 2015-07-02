@@ -22,6 +22,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSGlobalObjectFunctions.h"
 
@@ -43,6 +50,13 @@
 #include <wtf/MathExtras.h>
 #include <wtf/StringExtras.h>
 #include <wtf/unicode/UTF8.h>
+
+#if defined(JSC_TAINTED) 
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace WTF;
 using namespace Unicode;
@@ -443,6 +457,36 @@ EncodedJSValue JSC_HOST_CALL globalFuncEval(ExecState* exec)
     if (!x.isString())
         return JSValue::encode(x);
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    if (x.isString() && x.isTainted()) {
+	tainted = x.isTainted(); 
+    } else {
+	tainted = 0;
+    }
+    if (tainted) {
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "globalFuncEval";
+	trace_struct.jsfunc = "eval";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(x.toString(exec));
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    } else {
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "globalFuncEval";
+	trace_struct.jsfunc = "eval";
+	trace_struct.action = "call";
+	trace_struct.value = TaintedUtils::UString2string(x.toString(exec));
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
+
     UString s = x.toString(exec);
 
     LiteralParser preparser(exec, s, LiteralParser::NonStrictJSON);
@@ -501,12 +545,100 @@ EncodedJSValue JSC_HOST_CALL globalFuncDecodeURI(ExecState* exec)
     static const char do_not_unescape_when_decoding_URI[] =
         "#$&+,/:;=?@";
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    UString str = exec->argument(0).toString(exec);
+    if (str.isTainted()) {
+   	tainted = str.isTainted(); 
+    } else {
+	tainted = 0;
+    }
+    JSValue s = decode(exec, do_not_unescape_when_decoding_URI, true);
+    if (tainted) {
+	s.setTainted(tainted);
+
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "globalFuncDecodeURI";
+	trace_struct.jsfunc = "decodeURI";
+	trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+/*
+    } else {
+    	TaintedCounter* counter = TaintedCounter::getInstance();
+	unsigned int taintedno = counter->getCount();
+	s.setTainted(taintedno);
+
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = taintedno;
+	trace_struct.internalfunc = "globalFuncDecodeURI";
+	trace_struct.jsfunc = "decodeURI";
+	trace_struct.action = "source";
+        trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+*/
+    }
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "globalFuncDecodeURI:" << tainted << std::endl;
+#endif
+    return JSValue::encode(s);
+#else
     return JSValue::encode(decode(exec, do_not_unescape_when_decoding_URI, true));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL globalFuncDecodeURIComponent(ExecState* exec)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    UString str = exec->argument(0).toString(exec);
+    if (str.isTainted()) {
+	tainted = str.isTainted(); 
+    } else {
+    	tainted = 0;
+    }
+    JSValue s = decode(exec, "", true);
+    if (tainted) {
+	s.setTainted(tainted);
+
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "globalFuncDecodeURIComponent";
+	trace_struct.jsfunc = "decodeURIComponent";
+	trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+/*
+    } else {
+    	TaintedCounter* counter = TaintedCounter::getInstance();
+	unsigned int taintedno = counter->getCount();
+	s.setTainted(taintedno);
+
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = taintedno;
+	trace_struct.internalfunc = "globalFuncDecodeURIComponent";
+	trace_struct.jsfunc = "decodeURIComponent";
+	trace_struct.action = "source";
+        trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+*/
+    }
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "globalFuncDecodeURIComponent:" << tainted << std::endl;
+#endif
+    return JSValue::encode(s);
+#else
     return JSValue::encode(decode(exec, "", true));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL globalFuncEncodeURI(ExecState* exec)
@@ -517,7 +649,33 @@ EncodedJSValue JSC_HOST_CALL globalFuncEncodeURI(ExecState* exec)
         "0123456789"
         "!#$&'()*+,-./:;=?@_~";
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    UString str = exec->argument(0).toString(exec);
+    if (str.isTainted()) {
+	tainted = str.isTainted(); 
+    } else {
+	tainted = 0;
+    }
+    JSValue s = encode(exec, do_not_escape_when_encoding_URI);
+    s.setTainted(0);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = 0;
+    trace_struct.internalfunc = "globalFuncEncodeURI";
+    trace_struct.jsfunc = "encodeURI";
+    trace_struct.action = "reset";
+    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "globalFuncEncodeURI:" << tainted << std::endl;
+#endif
+    return JSValue::encode(s);
+#else
     return JSValue::encode(encode(exec, do_not_escape_when_encoding_URI));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL globalFuncEncodeURIComponent(ExecState* exec)
@@ -528,7 +686,33 @@ EncodedJSValue JSC_HOST_CALL globalFuncEncodeURIComponent(ExecState* exec)
         "0123456789"
         "!'()*-._~";
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    UString str = exec->argument(0).toString(exec);
+    if (str.isTainted()) {
+	tainted = str.isTainted(); 
+    } else {
+	tainted = 0;
+    }
+    JSValue s = encode(exec, do_not_escape_when_encoding_URI_component);
+    s.setTainted(0);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = 0;
+    trace_struct.internalfunc = "globalFuncEncodeURIComponent";
+    trace_struct.jsfunc = "encodeURIComponent";
+    trace_struct.action = "reset";
+    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "globalFuncEncodeURIComponent:" << tainted << std::endl;
+#endif
+    return JSValue::encode(s);
+#else
     return JSValue::encode(encode(exec, do_not_escape_when_encoding_URI_component));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL globalFuncEscape(ExecState* exec)
@@ -557,7 +741,32 @@ EncodedJSValue JSC_HOST_CALL globalFuncEscape(ExecState* exec)
         }
     }
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    if (str.isTainted()) {
+	tainted = str.isTainted(); 
+    } else {
+	tainted = 0;
+    }
+    JSValue s = builder.build(exec);
+    s.setTainted(0);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = 0;
+    trace_struct.internalfunc = "globalFuncEscape";
+    trace_struct.jsfunc = "escape";
+    trace_struct.action = "reset";
+    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "globalFuncEscape:" << tainted << std::endl;
+#endif
+    return JSValue::encode(s);
+#else
     return JSValue::encode(builder.build(exec));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL globalFuncUnescape(ExecState* exec)
@@ -584,7 +793,50 @@ EncodedJSValue JSC_HOST_CALL globalFuncUnescape(ExecState* exec)
         builder.append(*c);
     }
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    if (str.isTainted()) {
+	tainted = str.isTainted(); 
+    } else {
+	tainted = 0;
+    }
+    JSString* s = jsString(exec, builder.toUString());
+    if (tainted) {
+	s->setTainted(tainted);
+
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "globalFuncUnescape";
+	trace_struct.jsfunc = "unescape";
+	trace_struct.action = "propagate";
+        trace_struct.value = TaintedUtils::UString2string(str);
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+/*
+    } else {
+    	TaintedCounter* counter = TaintedCounter::getInstance();
+	unsigned int taintedno = counter->getCount();
+	s->setTainted(taintedno);
+
+    	TaintedStructure trace_struct;
+	trace_struct.taintedno = taintedno;
+	trace_struct.internalfunc = "globalFuncUnescape";
+	trace_struct.jsfunc = "unescape";
+	trace_struct.action = "source";
+        trace_struct.value = TaintedUtils::UString2string(str);
+
+    	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+*/
+    }
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "globalFuncUnescape:" << tainted << std::endl;
+#endif
+    return JSValue::encode(s);
+#else
     return JSValue::encode(jsString(exec, builder.toUString()));
+#endif
 }
 
 #ifndef NDEBUG

@@ -20,6 +20,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #ifndef JSValue_h
 #define JSValue_h
 
@@ -229,6 +236,11 @@ namespace JSC {
         bool isCell() const;
         JSCell* asCell() const;
         bool isValidCallee();
+
+#if defined(JSC_TAINTED)
+	void setTainted(unsigned int tainted);
+        unsigned int isTainted() const;
+#endif
 
 #ifndef NDEBUG
         char* description();

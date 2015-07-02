@@ -24,6 +24,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #ifndef Document_h
 #define Document_h
 
@@ -45,6 +52,12 @@
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/PassRefPtr.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include <sstream>
+#endif
 
 namespace WebCore {
 
@@ -1094,6 +1107,13 @@ public:
 
     ContentSecurityPolicy* contentSecurityPolicy() { return m_contentSecurityPolicy.get(); }
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted() const { return m_tainted; }
+    void setTainted(unsigned int tainted) { m_tainted = tainted; }
+    const String taintedTrace();
+    bool clearTaintedTrace();
+#endif
+
 protected:
     Document(Frame*, const KURL&, bool isXHTML, bool isHTML);
 
@@ -1393,6 +1413,10 @@ private:
 #endif
 
     RefPtr<ContentSecurityPolicy> m_contentSecurityPolicy;
+
+#if defined(JSC_TAINTED)
+    unsigned int m_tainted;
+#endif
 };
 
 // Put these methods here, because they require the Document definition, but we really want to inline them.

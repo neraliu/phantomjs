@@ -18,6 +18,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "RegExpPrototype.h"
 
@@ -35,6 +42,15 @@
 #include "RegExpCache.h"
 #include "StringRecursionChecker.h"
 #include "UStringConcatenate.h"
+
+#if defined(JSC_TAINTED)
+#include "JSArray.h"
+#include "ArrayConstructor.h"
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 namespace JSC {
 
@@ -71,7 +87,59 @@ EncodedJSValue JSC_HOST_CALL regExpProtoFuncExec(ExecState* exec)
     JSValue thisValue = exec->hostThisValue();
     if (!thisValue.inherits(&RegExpObject::s_info))
         return throwVMTypeError(exec);
+#if defined(JSC_TAINTED)
+    JSValue a = asRegExpObject(thisValue)->exec(exec);
+    if (a.inherits(&JSArray::s_info)) {
+
+	JSValue s = exec->argument(0);
+	unsigned int tainted = TaintedUtils::isTainted(exec, s);
+
+	if (tainted) {
+	    TaintedStructure trace_struct;
+	    trace_struct.taintedno = tainted;
+            trace_struct.internalfunc = "regExpProtoFuncExec";
+            trace_struct.jsfunc = "RegExp.exec";
+	    trace_struct.action = "propagate";
+    	    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+	    TaintedTrace* trace = TaintedTrace::getInstance();
+	    trace->addTaintedTrace(trace_struct);
+	}
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "regExpProtoFuncExec:" << tainted << std::endl;
+#endif
+
+        JSArray* resObj = constructEmptyArray(exec);
+	JSObject* thisObj = a.toThisObject(exec);
+
+	unsigned length = asArray(a)->get(exec, exec->propertyNames().length).toUInt32(exec);
+        if (exec->hadException())
+            return JSValue::encode(jsUndefined());
+
+	unsigned n = 0;
+	for (unsigned k = 0; k < length; k++, n++) {
+	    PropertySlot slot(thisObj);
+	    if (!thisObj->getPropertySlot(exec, k, slot)) {
+		JSValue val = JSValue();
+            	resObj->put(exec, n, val);
+	    } else {
+    		JSValue val = slot.getValue(exec, k);
+		if (tainted && val.isString()) { val.setTainted(tainted);
+		} else if (!tainted && val.isString()) { val.setTainted(tainted); }
+		if (tainted && val.inherits(&StringObject::s_info)) { asStringObject(val)->setTainted(tainted);
+		} else if (!tainted && val.inherits(&StringObject::s_info)) { asStringObject(val)->setTainted(tainted); }
+		resObj->put(exec, n, val);
+	    }
+    	}
+	resObj->setLength(n);
+
+        JSValue result = resObj;
+	return JSValue::encode(result);
+    }
+    return JSValue::encode(jsUndefined());
+#else
     return JSValue::encode(asRegExpObject(thisValue)->exec(exec));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL regExpProtoFuncCompile(ExecState* exec)

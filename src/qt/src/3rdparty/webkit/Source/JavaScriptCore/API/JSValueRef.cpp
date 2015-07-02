@@ -23,6 +23,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the BSD license.
+ *
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ */
 #include "config.h"
 #include "JSValueRef.h"
 
@@ -332,3 +338,35 @@ void JSValueUnprotect(JSContextRef ctx, JSValueRef value)
     JSValue jsValue = toJSForGC(exec, value);
     gcUnprotect(jsValue);
 }
+
+#if defined(JSC_TAINTED)
+int JSValueIsTainted(JSContextRef ctx, JSValueRef value) 
+{
+    ExecState* exec = toJS(ctx);
+    APIEntryShim entryShim(exec);
+
+    JSValue jsValue = toJS(exec, value);
+    if (jsValue.isString()) {
+        return jsValue.isTainted();
+    }
+     
+    if (jsValue.inherits(&StringObject::s_info)) {
+        return asStringObject(jsValue)->isTainted();
+    }
+}
+
+void JSValueSetTainted(JSContextRef ctx, JSValueRef value, unsigned int tainted)
+{
+    ExecState* exec = toJS(ctx);
+    APIEntryShim entryShim(exec);
+
+    JSValue jsValue = toJS(exec, value);
+    if (jsValue.isString()) {
+        jsValue.setTainted(tainted);
+    }
+
+    if (jsValue.inherits(&StringObject::s_info)) {
+        asStringObject(jsValue)->setTainted(tainted);
+    }
+}
+#endif

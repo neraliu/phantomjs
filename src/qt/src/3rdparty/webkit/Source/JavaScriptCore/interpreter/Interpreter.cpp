@@ -27,8 +27,18 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the BSD license.
+ *
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ */
 #include "config.h"
 #include "Interpreter.h"
+
+#if defined(JSC_TAINTED_I_DEBUG)
+#include <iostream>
+#endif
 
 #include "Arguments.h"
 #include "BatchedTransitionOptimizer.h"
@@ -728,6 +738,9 @@ static inline JSObject* checkedReturn(JSObject* returnValue)
 JSValue Interpreter::execute(ProgramExecutable* program, CallFrame* callFrame, ScopeChainNode* scopeChain, JSObject* thisObj)
 {
     ASSERT(!scopeChain->globalData->exception);
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::execute" << std::endl;
+#endif
 
     if (m_reentryDepth >= MaxSmallThreadReentryDepth && m_reentryDepth >= callFrame->globalData().maxReentryDepth)
         return checkedReturn(throwStackOverflowError(callFrame));
@@ -786,6 +799,9 @@ JSValue Interpreter::execute(ProgramExecutable* program, CallFrame* callFrame, S
 JSValue Interpreter::executeCall(CallFrame* callFrame, JSObject* function, CallType callType, const CallData& callData, JSValue thisValue, const ArgList& args)
 {
     ASSERT(!callFrame->hadException());
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::executeCall" << std::endl;
+#endif
 
     if (m_reentryDepth >= MaxSmallThreadReentryDepth && m_reentryDepth >= callFrame->globalData().maxReentryDepth)
         return checkedReturn(throwStackOverflowError(callFrame));
@@ -876,6 +892,9 @@ JSValue Interpreter::executeCall(CallFrame* callFrame, JSObject* function, CallT
 JSObject* Interpreter::executeConstruct(CallFrame* callFrame, JSObject* constructor, ConstructType constructType, const ConstructData& constructData, const ArgList& args)
 {
     ASSERT(!callFrame->hadException());
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::executeConstruct" << std::endl;
+#endif
 
     if (m_reentryDepth >= MaxSmallThreadReentryDepth && m_reentryDepth >= callFrame->globalData().maxReentryDepth)
         return checkedReturn(throwStackOverflowError(callFrame));
@@ -1014,6 +1033,9 @@ CallFrameClosure Interpreter::prepareForRepeatCall(FunctionExecutable* FunctionE
 
 JSValue Interpreter::execute(CallFrameClosure& closure) 
 {
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::execute(CallFrameClosure& closure)" << std::endl;
+#endif
     closure.resetCallFrame();
     Profiler** profiler = Profiler::enabledProfilerReference();
     if (*profiler)
@@ -1051,6 +1073,9 @@ void Interpreter::endRepeatCall(CallFrameClosure& closure)
 
 JSValue Interpreter::execute(EvalExecutable* eval, CallFrame* callFrame, JSObject* thisObj, ScopeChainNode* scopeChain)
 {
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::execute(EvalExecutable* eval, CallFrame* callFrame, JSObject* thisObj, ScopeChainNode* scopeChain)" << std::endl;
+#endif
     JSObject* compileError = eval->compile(callFrame, scopeChain);
     if (UNLIKELY(!!compileError))
         return checkedReturn(throwError(callFrame, compileError));
@@ -1060,6 +1085,9 @@ JSValue Interpreter::execute(EvalExecutable* eval, CallFrame* callFrame, JSObjec
 JSValue Interpreter::execute(EvalExecutable* eval, CallFrame* callFrame, JSObject* thisObj, int globalRegisterOffset, ScopeChainNode* scopeChain)
 {
     ASSERT(!scopeChain->globalData->exception);
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::execute(EvalExecutable* eval, CallFrame* callFrame, JSObject* thisObj, int globalRegisterOffset, ScopeChainNode* scopeChain)" << std::endl;
+#endif
 
     DynamicGlobalObjectScope globalObjectScope(*scopeChain->globalData, scopeChain->globalObject.get());
 
@@ -1416,6 +1444,10 @@ NEVER_INLINE void Interpreter::uncacheGetByID(CodeBlock*, Instruction* vPC)
 
 JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFile, CallFrame* callFrame)
 {
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "Interpreter::privateExecute" << std::endl;
+#endif
+
     // One-time initialization of our address tables. We have to put this code
     // here because our labels are only in scope inside this function.
     if (UNLIKELY(flag == InitializeAndReturn)) {
@@ -1506,6 +1538,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Constructs a new empty Object instance using the original
            constructor, and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_new_object)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         callFrame->uncheckedR(dst) = JSValue(constructEmptyObject(callFrame));
 
@@ -1520,6 +1555,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            The array will contain argCount elements with values
            taken from registers starting at register firstArg.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_new_array)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int firstArg = vPC[2].u.operand;
         int argCount = vPC[3].u.operand;
@@ -1536,6 +1574,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            constructor from regexp regExp, and puts the result in
            register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_new_regexp)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         RegExp* regExp = codeBlock->regexp(vPC[2].u.operand);
         if (!regExp->isValid()) {
@@ -1552,6 +1593,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
 
            Copies register src to register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_mov)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         
@@ -1567,6 +1611,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            as with the ECMAScript '==' operator, and puts the result
            as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_eq)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1587,6 +1634,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Checks whether register src is null, as with the ECMAScript '!='
            operator, and puts the result as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_eq_null)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src = callFrame->r(vPC[2].u.operand).jsValue();
 
@@ -1607,6 +1657,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            equal, as with the ECMAScript '!=' operator, and puts the
            result as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_neq)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1627,6 +1680,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Checks whether register src is not null, as with the ECMAScript '!='
            operator, and puts the result as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_neq_null)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src = callFrame->r(vPC[2].u.operand).jsValue();
 
@@ -1647,6 +1703,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            equal, as with the ECMAScript '===' operator, and puts the
            result as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_stricteq)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1664,6 +1723,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            strictly equal, as with the ECMAScript '!==' operator, and
            puts the result as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_nstricteq)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1681,6 +1743,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            with the ECMAScript '<' operator, and puts the result as
            a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_less)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1698,6 +1763,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            register src2, as with the ECMAScript '<=' operator, and
            puts the result as a boolean in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_lesseq)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1714,6 +1782,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Converts register srcDst to number, adds one, and puts the result
            back in register srcDst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_pre_inc)" << std::endl;
+#endif
         int srcDst = vPC[1].u.operand;
         JSValue v = callFrame->r(srcDst).jsValue();
         if (v.isInt32() && v.asInt32() < INT_MAX)
@@ -1733,6 +1804,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Converts register srcDst to number, subtracts one, and puts the result
            back in register srcDst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_pre_dec)" << std::endl;
+#endif
         int srcDst = vPC[1].u.operand;
         JSValue v = callFrame->r(srcDst).jsValue();
         if (v.isInt32() && v.asInt32() > INT_MIN)
@@ -1753,6 +1827,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            written to register dst, and the number plus one is written
            back to register srcDst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_post_inc)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int srcDst = vPC[2].u.operand;
         JSValue v = callFrame->r(srcDst).jsValue();
@@ -1776,6 +1853,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            written to register dst, and the number minus one is written
            back to register srcDst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_post_dec)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int srcDst = vPC[2].u.operand;
         JSValue v = callFrame->r(srcDst).jsValue();
@@ -1798,6 +1878,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Converts register src to number, and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_to_jsnumber)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
 
@@ -1820,6 +1903,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Converts register src to number, negates it, and puts the
            result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_negate)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src = callFrame->r(vPC[2].u.operand).jsValue();
         if (src.isInt32() && (src.asInt32() & 0x7fffffff)) // non-zero and no overflow
@@ -1840,6 +1926,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            in register dst. (JS add may be string concatenation or
            numeric add, depending on the types of the operands.)
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_add)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1859,6 +1948,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Multiplies register src1 and register src2 (converted to
            numbers), and puts the product in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_mul)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1880,6 +1972,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            register divisor (converted to number), and puts the
            quotient in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_div)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue dividend = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue divisor = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1898,6 +1993,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            register divisor (converted to number), and puts the
            remainder in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_mod)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue dividend = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue divisor = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1927,6 +2025,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            src1 (converted to number), and puts the difference in
            register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_sub)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1947,6 +2048,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            register shift (converted to uint32), and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_lshift)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue val = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue shift = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1969,6 +2073,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            to int32) by register shift (converted to
            uint32), and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_rshift)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue val = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue shift = callFrame->r(vPC[3].u.operand).jsValue();
@@ -1991,6 +2098,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            to uint32) by register shift (converted to
            uint32), and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_urshift)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue val = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue shift = callFrame->r(vPC[3].u.operand).jsValue();
@@ -2012,6 +2122,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            and register src2 (converted to int32), and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_bitand)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -2033,6 +2146,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            and register src2 (converted to int32), and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_bitxor)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -2054,6 +2170,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            and register src2 (converted to int32), and puts the
            result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_bitor)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src1 = callFrame->r(vPC[2].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[3].u.operand).jsValue();
@@ -2074,6 +2193,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Computes bitwise NOT of register src1 (converted to int32),
            and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_bitnot)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSValue src = callFrame->r(vPC[2].u.operand).jsValue();
         if (src.isInt32())
@@ -2092,6 +2214,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Computes logical NOT of register src (converted to
            boolean), and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_not)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         JSValue result = jsBoolean(!callFrame->r(src).jsValue().toBoolean(callFrame));
@@ -2109,6 +2234,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            JSC API*). Raises an exception if register constructor is not
            an valid parameter for instanceof.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_check_has_instance)" << std::endl;
+#endif
         int base = vPC[1].u.operand;
         JSValue baseVal = callFrame->r(base).jsValue();
 
@@ -2131,6 +2259,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Raises an exception if register constructor is not an
            object.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_instanceof)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int value = vPC[2].u.operand;
         int base = vPC[3].u.operand;
@@ -2153,6 +2284,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Determines the type string for src according to ECMAScript
            rules, and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_typeof)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         callFrame->uncheckedR(dst) = JSValue(jsTypeStringForValue(callFrame, callFrame->r(src).jsValue()));
@@ -2167,6 +2301,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            the ECMAScript rules is "undefined", and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_is_undefined)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         JSValue v = callFrame->r(src).jsValue();
@@ -2182,6 +2319,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            the ECMAScript rules is "boolean", and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_is_boolean)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         callFrame->uncheckedR(dst) = jsBoolean(callFrame->r(src).jsValue().isBoolean());
@@ -2196,6 +2336,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            the ECMAScript rules is "number", and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_is_number)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         callFrame->uncheckedR(dst) = jsBoolean(callFrame->r(src).jsValue().isNumber());
@@ -2210,6 +2353,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            the ECMAScript rules is "string", and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_is_string)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         callFrame->uncheckedR(dst) = jsBoolean(callFrame->r(src).jsValue().isString());
@@ -2224,6 +2370,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            the ECMAScript rules is "object", and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_is_object)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         callFrame->uncheckedR(dst) = jsBoolean(jsIsObjectType(callFrame->r(src).jsValue()));
@@ -2238,6 +2387,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            the ECMAScript rules is "function", and puts the result
            in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_is_function)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         callFrame->uncheckedR(dst) = jsBoolean(jsIsFunctionType(callFrame->r(src).jsValue()));
@@ -2254,6 +2406,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Raises an exception if register constructor is not an
            object.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_in)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int property = vPC[2].u.operand;
         int base = vPC[3].u.operand;
@@ -2285,6 +2440,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            scope chain, and writes the resulting value to register
            dst. If the property is not found, raises an exception.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_resolve)" << std::endl;
+#endif
         if (UNLIKELY(!resolve(callFrame, vPC, exceptionValue)))
             goto vm_throw;
 
@@ -2298,6 +2456,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          scope chain skipping the top 'skip' levels, and writes the resulting
          value to register dst. If the property is not found, raises an exception.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_resolve_skip)" << std::endl;
+#endif
         if (UNLIKELY(!resolveSkip(callFrame, vPC, exceptionValue)))
             goto vm_throw;
 
@@ -2313,6 +2474,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            a fast lookup using the case offset, otherwise fall back to a full resolve and
            cache the new structure and offset
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_resolve_global)" << std::endl;
+#endif
         if (UNLIKELY(!resolveGlobal(callFrame, vPC, exceptionValue)))
             goto vm_throw;
         
@@ -2331,6 +2495,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          This walks through n levels of the scope chain to verify that none of those levels
          in the scope chain include dynamically added properties.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_resolve_global_dynamic)" << std::endl;
+#endif
         if (UNLIKELY(!resolveGlobalDynamic(callFrame, vPC, exceptionValue)))
             goto vm_throw;
         
@@ -2343,6 +2510,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
 
            Gets the global var at global slot index and places it in register dst.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_global_var)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         JSGlobalObject* scope = codeBlock->globalObject();
         ASSERT(scope->isGlobalObject());
@@ -2357,6 +2527,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          
            Puts value into global slot index.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_global_var)" << std::endl;
+#endif
         JSGlobalObject* scope = codeBlock->globalObject();
         ASSERT(scope->isGlobalObject());
         int index = vPC[1].u.operand;
@@ -2372,6 +2545,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          Loads the contents of the index-th local from the scope skip nodes from
          the top of the scope chain, and places it in register dst.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_scoped_var)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int index = vPC[2].u.operand;
         int skip = vPC[3].u.operand;
@@ -2402,6 +2578,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
         /* put_scoped_var index(n) skip(n) value(r)
 
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_scoped_var)" << std::endl;
+#endif
         int index = vPC[1].u.operand;
         int skip = vPC[2].u.operand;
         int value = vPC[3].u.operand;
@@ -2438,6 +2617,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            outermost scope (which will be the global object) is
            stored in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_resolve_base)" << std::endl;
+#endif
         resolveBase(callFrame, vPC);
         CHECK_FOR_EXCEPTION();
 
@@ -2449,6 +2631,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
 
            Throws an exception if property does not exist on base
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_ensure_property_exists)" << std::endl;
+#endif
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
         Identifier& ident = codeBlock->identifier(property);
@@ -2476,6 +2661,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            resolve, or resolve_base followed by get_by_id, as it
            avoids duplicate hash lookups.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_resolve_with_base)" << std::endl;
+#endif
         if (UNLIKELY(!resolveBaseAndProperty(callFrame, vPC, exceptionValue)))
             goto vm_throw;
 
@@ -2488,6 +2676,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            Generic property access: Gets the property named by identifier
            property from the value base, and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -2511,6 +2702,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            value base. If the cache misses, op_get_by_id_self reverts to
            op_get_by_id.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_self)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
 
@@ -2542,6 +2736,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            value base's prototype. If the cache misses, op_get_by_id_proto
            reverts to op_get_by_id.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_proto)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
 
@@ -2581,6 +2778,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          value base's prototype. If the cache misses, op_get_by_id_getter_proto
          reverts to op_get_by_id.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_getter_proto)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -2626,6 +2826,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          from the value base's prototype. If the cache misses, op_get_by_id_custom_proto
          reverts to op_get_by_id.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_custom_proto)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -2710,6 +2913,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
            value base's prototype chain. If the cache misses, op_get_by_id_chain
            reverts to op_get_by_id.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_chain)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
 
@@ -2760,6 +2966,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          value base. If the cache misses, op_get_by_id_getter_self reverts to
          op_get_by_id.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_getter_self)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -2803,6 +3012,9 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
          from the value base. If the cache misses, op_get_by_id_custom_self reverts to
          op_get_by_id.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_custom_self)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -2836,6 +3048,9 @@ skip_id_custom_self:
            Generic property access: Gets the property named by identifier
            property from the value base, and puts the result in register dst.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_generic)" << std::endl;
+#endif
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -2860,6 +3075,9 @@ skip_id_custom_self:
          value base's prototype chain. If the cache misses, op_get_by_id_getter_chain
          reverts to op_get_by_id.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_getter_chain)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -2915,6 +3133,9 @@ skip_id_custom_self:
          value base's prototype chain. If the cache misses, op_get_by_id_custom_chain
          reverts to op_get_by_id.
          */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_id_custom_chain)" << std::endl;
+#endif
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -2965,6 +3186,9 @@ skip_id_custom_self:
            and puts the result in register dst. If register base does not hold
            an array, op_get_array_length reverts to op_get_by_id.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_array_length)" << std::endl;
+#endif
 
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
@@ -2989,6 +3213,9 @@ skip_id_custom_self:
            and puts the result in register dst. If register base does not hold
            a string, op_get_string_length reverts to op_get_by_id.
         */
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_string_length)" << std::endl;
+#endif
 
         int base = vPC[2].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
@@ -3018,6 +3245,12 @@ skip_id_custom_self:
            The "direct" flag should only be set this put_by_id is to initialize
            an object literal.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_by_id)" << std::endl;
+#endif
+
+
 
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
@@ -3053,6 +3286,12 @@ skip_id_custom_self:
            Unlike many opcodes, this one does not write any output to
            the register file.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_by_id_transition)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
         
@@ -3105,6 +3344,12 @@ skip_id_custom_self:
            Unlike many opcodes, this one does not write any output to
            the register file.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_by_id_replace)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         JSValue baseValue = callFrame->r(base).jsValue();
 
@@ -3138,6 +3383,12 @@ skip_id_custom_self:
            Unlike many opcodes, this one does not write any output to
            the register file.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_by_id_generic)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
         int value = vPC[3].u.operand;
@@ -3164,6 +3415,12 @@ skip_id_custom_self:
            boolean indicating success (if true) or failure (if false)
            to register dst.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_del_by_id)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -3181,6 +3438,12 @@ skip_id_custom_self:
         NEXT_INSTRUCTION();
     }
     DEFINE_OPCODE(op_get_by_pname) {
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_pname)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -3210,6 +3473,12 @@ skip_id_custom_self:
         NEXT_INSTRUCTION();
     }
     DEFINE_OPCODE(op_get_arguments_length) {
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_arguments_length)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int argumentsRegister = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -3227,6 +3496,12 @@ skip_id_custom_self:
         NEXT_INSTRUCTION();
     }
     DEFINE_OPCODE(op_get_argument_by_val) {
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_argument_by_val)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int argumentsRegister = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -3257,6 +3532,12 @@ skip_id_custom_self:
            in register dst. property is nominally converted to string
            but numbers are treated more efficiently.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_by_val)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -3301,6 +3582,12 @@ skip_id_custom_self:
            Unlike many opcodes, this one does not write any output to
            the register file.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_by_val)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
         int value = vPC[3].u.operand;
@@ -3348,6 +3635,12 @@ skip_id_custom_self:
            boolean indicating success (if true) or failure (if false)
            to register dst.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_del_by_val)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int property = vPC[3].u.operand;
@@ -3386,6 +3679,12 @@ skip_id_custom_self:
 
            This opcode is mainly used to initialize array literals.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_by_index)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         unsigned property = vPC[2].u.operand;
         int value = vPC[3].u.operand;
@@ -3404,6 +3703,12 @@ skip_id_custom_self:
            Additionally this loop instruction may terminate JS execution is
            the JS timeout is reached.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_loop)" << std::endl;
+#endif
+
+
 #if ENABLE(OPCODE_STATS)
         OpcodeStats::resetLastInstruction();
 #endif
@@ -3418,6 +3723,12 @@ skip_id_custom_self:
            Jumps unconditionally to offset target from the current
            instruction.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jmp)" << std::endl;
+#endif
+
+
 #if ENABLE(OPCODE_STATS)
         OpcodeStats::resetLastInstruction();
 #endif
@@ -3435,6 +3746,12 @@ skip_id_custom_self:
            Additionally this loop instruction may terminate JS execution is
            the JS timeout is reached.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_loop_if_true)" << std::endl;
+#endif
+
+
         int cond = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         if (callFrame->r(cond).jsValue().toBoolean(callFrame)) {
@@ -3455,6 +3772,12 @@ skip_id_custom_self:
            Additionally this loop instruction may terminate JS execution is
            the JS timeout is reached.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_loop_if_false)" << std::endl;
+#endif
+
+
         int cond = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         if (!callFrame->r(cond).jsValue().toBoolean(callFrame)) {
@@ -3472,6 +3795,12 @@ skip_id_custom_self:
            Jumps to offset target from the current instruction, if and
            only if register cond converts to boolean as true.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jtrue)" << std::endl;
+#endif
+
+
         int cond = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         if (callFrame->r(cond).jsValue().toBoolean(callFrame)) {
@@ -3488,6 +3817,12 @@ skip_id_custom_self:
            Jumps to offset target from the current instruction, if and
            only if register cond converts to boolean as false.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jfalse)" << std::endl;
+#endif
+
+
         int cond = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         if (!callFrame->r(cond).jsValue().toBoolean(callFrame)) {
@@ -3504,6 +3839,12 @@ skip_id_custom_self:
            Jumps to offset target from the current instruction, if and
            only if register src is null.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jeq_null)" << std::endl;
+#endif
+
+
         int src = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         JSValue srcValue = callFrame->r(src).jsValue();
@@ -3522,6 +3863,12 @@ skip_id_custom_self:
            Jumps to offset target from the current instruction, if and
            only if register src is not null.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jneq_null)" << std::endl;
+#endif
+
+
         int src = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         JSValue srcValue = callFrame->r(src).jsValue();
@@ -3540,6 +3887,12 @@ skip_id_custom_self:
            Jumps to offset target from the current instruction, if the value r is equal
            to ptr, using pointer equality.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jneq_ptr)" << std::endl;
+#endif
+
+
         int src = vPC[1].u.operand;
         int target = vPC[3].u.operand;
         JSValue srcValue = callFrame->r(src).jsValue();
@@ -3562,6 +3915,12 @@ skip_id_custom_self:
            Additionally this loop instruction may terminate JS execution is
            the JS timeout is reached.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_loop_if_less)" << std::endl;
+#endif
+
+
         JSValue src1 = callFrame->r(vPC[1].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[2].u.operand).jsValue();
         int target = vPC[3].u.operand;
@@ -3589,6 +3948,12 @@ skip_id_custom_self:
            Additionally this loop instruction may terminate JS execution is
            the JS timeout is reached.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_loop_if_lesseq)" << std::endl;
+#endif
+
+
         JSValue src1 = callFrame->r(vPC[1].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[2].u.operand).jsValue();
         int target = vPC[3].u.operand;
@@ -3613,6 +3978,12 @@ skip_id_custom_self:
            target from the current instruction, if and only if the 
            result of the comparison is false.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jnless)" << std::endl;
+#endif
+
+
         JSValue src1 = callFrame->r(vPC[1].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[2].u.operand).jsValue();
         int target = vPC[3].u.operand;
@@ -3636,6 +4007,12 @@ skip_id_custom_self:
            target from the current instruction, if and only if the 
            result of the comparison is true.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jless)" << std::endl;
+#endif
+
+
         JSValue src1 = callFrame->r(vPC[1].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[2].u.operand).jsValue();
         int target = vPC[3].u.operand;
@@ -3659,6 +4036,12 @@ skip_id_custom_self:
            and then jumps to offset target from the current instruction,
            if and only if theresult of the comparison is false.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jnlesseq)" << std::endl;
+#endif
+
+
         JSValue src1 = callFrame->r(vPC[1].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[2].u.operand).jsValue();
         int target = vPC[3].u.operand;
@@ -3682,6 +4065,12 @@ skip_id_custom_self:
          and then jumps to offset target from the current instruction,
          if and only if the result of the comparison is true.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jlesseq)" << std::endl;
+#endif
+
+
         JSValue src1 = callFrame->r(vPC[1].u.operand).jsValue();
         JSValue src2 = callFrame->r(vPC[2].u.operand).jsValue();
         int target = vPC[3].u.operand;
@@ -3706,6 +4095,12 @@ skip_id_custom_self:
            table, and the value at jumpTable[scrutinee value] is non-zero, then
            that value is used as the jump offset, otherwise defaultOffset is used.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_switch_imm)" << std::endl;
+#endif
+
+
         int tableIndex = vPC[1].u.operand;
         int defaultOffset = vPC[2].u.operand;
         JSValue scrutinee = callFrame->r(vPC[3].u.operand).jsValue();
@@ -3730,6 +4125,12 @@ skip_id_custom_self:
            table, and the value at jumpTable[scrutinee value] is non-zero, then
            that value is used as the jump offset, otherwise defaultOffset is used.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_switch_char)" << std::endl;
+#endif
+
+
         int tableIndex = vPC[1].u.operand;
         int defaultOffset = vPC[2].u.operand;
         JSValue scrutinee = callFrame->r(vPC[3].u.operand).jsValue();
@@ -3753,6 +4154,12 @@ skip_id_custom_self:
            jump table, then the value associated with the string is used as the 
            jump offset, otherwise defaultOffset is used.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_switch_string)" << std::endl;
+#endif
+
+
         int tableIndex = vPC[1].u.operand;
         int defaultOffset = vPC[2].u.operand;
         JSValue scrutinee = callFrame->r(vPC[3].u.operand).jsValue();
@@ -3770,6 +4177,12 @@ skip_id_custom_self:
            constructor, using the rules for function declarations, and
            puts the result in register dst.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_new_func)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int func = vPC[2].u.operand;
         int shouldCheck = vPC[3].u.operand;
@@ -3788,6 +4201,12 @@ skip_id_custom_self:
            constructor, using the rules for function expressions, and
            puts the result in register dst.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_new_func_exp)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int funcIndex = vPC[2].u.operand;
         
@@ -3823,6 +4242,12 @@ skip_id_custom_self:
            the argument registers as for the "call"
            opcode). Otherwise, act exactly as the "call" opcode would.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_call_eval)" << std::endl;
+#endif
+
+
 
         int func = vPC[1].u.operand;
         int argCount = vPC[2].u.operand;
@@ -3860,6 +4285,12 @@ skip_id_custom_self:
            
            dst is where op_ret should store its result.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_call)" << std::endl;
+#endif
+
+
 
         int func = vPC[1].u.operand;
         int argCount = vPC[2].u.operand;
@@ -3929,6 +4360,12 @@ skip_id_custom_self:
         goto vm_throw;
     }
     DEFINE_OPCODE(op_load_varargs) {
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_load_varargs)" << std::endl;
+#endif
+
+
         int argCountDst = vPC[1].u.operand;
         int argsOffset = vPC[2].u.operand;
         
@@ -4018,6 +4455,12 @@ skip_id_custom_self:
          
          dst is where op_ret should store its result.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_call_varargs)" << std::endl;
+#endif
+
+
         
         int func = vPC[1].u.operand;
         int argCountReg = vPC[2].u.operand;
@@ -4097,6 +4540,12 @@ skip_id_custom_self:
            This opcode appears before op_ret in functions that require full scope chains.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_tear_off_activation)" << std::endl;
+#endif
+
+
+
         int activation = vPC[1].u.operand;
         int arguments = vPC[2].u.operand;
         ASSERT(codeBlock->needsFullScopeChain());
@@ -4128,6 +4577,12 @@ skip_id_custom_self:
            scope chains, but do use 'arguments'.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_tear_off_arguments)" << std::endl;
+#endif
+
+
+
         int src1 = vPC[1].u.operand;
         ASSERT(!codeBlock->needsFullScopeChain() && codeBlock->ownerExecutable()->usesArguments());
 
@@ -4146,6 +4601,12 @@ skip_id_custom_self:
            chain, code block instruction pointer and register base
            to those of the calling function.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_ret)" << std::endl;
+#endif
+
+
 
         int result = vPC[1].u.operand;
 
@@ -4170,6 +4631,12 @@ skip_id_custom_self:
            expected return value register.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_call_put_result)" << std::endl;
+#endif
+
+
+
         callFrame->uncheckedR(vPC[1].u.operand) = functionReturnValue;
 
         vPC += OPCODE_LENGTH(op_call_put_result);
@@ -4184,6 +4651,12 @@ skip_id_custom_self:
            restore the scope chain, code block instruction pointer and
            register base to those of the calling function.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_ret_object_or_this)" << std::endl;
+#endif
+
+
 
         int result = vPC[1].u.operand;
 
@@ -4213,6 +4686,12 @@ skip_id_custom_self:
            This opcode appears only at the beginning of a code block.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_enter)" << std::endl;
+#endif
+
+
+
         size_t i = 0;
         for (size_t count = codeBlock->m_numVars; i < count; ++i)
             callFrame->uncheckedR(i) = jsUndefined();
@@ -4226,6 +4705,12 @@ skip_id_custom_self:
            If the activation object for this callframe has not yet been created,
            this creates it and writes it back to dst.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_create_activation)" << std::endl;
+#endif
+
+
 
         int activationReg = vPC[1].u.operand;
         if (!callFrame->r(activationReg).jsValue()) {
@@ -4242,6 +4727,12 @@ skip_id_custom_self:
            Move callee into a register.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_callee)" << std::endl;
+#endif
+
+
+
         callFrame->uncheckedR(vPC[1].u.operand) = JSValue(callFrame->callee());
 
         vPC += OPCODE_LENGTH(op_get_callee);
@@ -4255,6 +4746,12 @@ skip_id_custom_self:
            This opcode should only be used at the beginning of a code
            block.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_create_this)" << std::endl;
+#endif
+
+
 
         int thisRegister = vPC[1].u.operand;
         int protoRegister = vPC[2].u.operand;
@@ -4288,6 +4785,12 @@ skip_id_custom_self:
            block.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_convert_this)" << std::endl;
+#endif
+
+
+
         int thisRegister = vPC[1].u.operand;
         JSValue thisVal = callFrame->r(thisRegister).jsValue();
         if (thisVal.needsThisConversion())
@@ -4306,6 +4809,12 @@ skip_id_custom_self:
          This opcode should only be used at the beginning of a code
          block.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_convert_this_strict)" << std::endl;
+#endif
+
+
         
         int thisRegister = vPC[1].u.operand;
         JSValue thisVal = callFrame->r(thisRegister).jsValue();
@@ -4322,6 +4831,12 @@ skip_id_custom_self:
 
            This opcode appears only at the beginning of a code block.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_init_lazy_reg)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
 
         callFrame->uncheckedR(dst) = JSValue();
@@ -4335,6 +4850,12 @@ skip_id_custom_self:
            'arguments' call frame slot and the local 'arguments'
            register, if it has not already been initialised.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_create_arguments)" << std::endl;
+#endif
+
+
         
         int dst = vPC[1].u.operand;
 
@@ -4360,6 +4881,12 @@ skip_id_custom_self:
            register func. This is to enable polymorphic inline
            caching of this lookup.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_construct)" << std::endl;
+#endif
+
+
 
         int func = vPC[1].u.operand;
         int argCount = vPC[2].u.operand;
@@ -4433,6 +4960,12 @@ skip_id_custom_self:
            strings with values taken from registers starting at
            register src.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_strcat)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
         int count = vPC[3].u.operand;
@@ -4444,6 +4977,12 @@ skip_id_custom_self:
         NEXT_INSTRUCTION();
     }
     DEFINE_OPCODE(op_to_primitive) {
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_to_primitive)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int src = vPC[2].u.operand;
 
@@ -4459,6 +4998,12 @@ skip_id_custom_self:
            of the current scope chain.  The contents of the register scope
            are replaced by the result of toObject conversion of the scope.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_push_scope)" << std::endl;
+#endif
+
+
         int scope = vPC[1].u.operand;
         JSValue v = callFrame->r(scope).jsValue();
         JSObject* o = v.toObject(callFrame);
@@ -4475,6 +5020,12 @@ skip_id_custom_self:
 
            Removes the top item from the current scope chain.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_pop_scope)" << std::endl;
+#endif
+
+
         callFrame->setScopeChain(callFrame->scopeChain()->pop());
 
         vPC += OPCODE_LENGTH(op_pop_scope);
@@ -4487,6 +5038,12 @@ skip_id_custom_self:
            in register dst, initializing i and size for iteration. If
            base is undefined or null, jumps to breakTarget.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_get_pnames)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int i = vPC[3].u.operand;
@@ -4520,6 +5077,12 @@ skip_id_custom_self:
            names left, invalidates the iterator and continues to the next
            instruction.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_next_pname)" << std::endl;
+#endif
+
+
         int dst = vPC[1].u.operand;
         int base = vPC[2].u.operand;
         int i = vPC[3].u.operand;
@@ -4550,6 +5113,12 @@ skip_id_custom_self:
            specified by immediate number count, then jumps to offset
            target.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jmp_scopes)" << std::endl;
+#endif
+
+
         int count = vPC[1].u.operand;
         int target = vPC[2].u.operand;
 
@@ -4572,6 +5141,12 @@ skip_id_custom_self:
            object is then pushed onto the ScopeChain.  The scope object is then stored
            in dst for GC.
          */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_push_new_scope)" << std::endl;
+#endif
+
+
         callFrame->setScopeChain(createExceptionScope(callFrame, vPC));
 
         vPC += OPCODE_LENGTH(op_push_new_scope);
@@ -4587,6 +5162,12 @@ skip_id_custom_self:
            ex. This is only valid after an exception has been raised,
            and usually forms the beginning of an exception handler.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_catch)" << std::endl;
+#endif
+
+
         ASSERT(exceptionValue);
         ASSERT(!globalData->exception);
         int ex = vPC[1].u.operand;
@@ -4607,6 +5188,12 @@ skip_id_custom_self:
            else the script returns control to the nearest native caller.
         */
 
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_throw)" << std::endl;
+#endif
+
+
+
         int ex = vPC[1].u.operand;
         exceptionValue = callFrame->r(ex).jsValue();
 
@@ -4625,6 +5212,12 @@ skip_id_custom_self:
            original constructor, using constant message as the
            message string. The result is thrown.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_throw_reference_error)" << std::endl;
+#endif
+
+
         UString message = callFrame->r(vPC[1].u.operand).jsValue().toString(callFrame);
         exceptionValue = JSValue(createReferenceError(callFrame, message));
         goto vm_throw;
@@ -4635,6 +5228,12 @@ skip_id_custom_self:
            Return register result as the value of a global or eval
            program. Return control to the calling native code.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_end)" << std::endl;
+#endif
+
+
 
         int result = vPC[1].u.operand;
         return callFrame->r(result).jsValue();
@@ -4650,6 +5249,12 @@ skip_id_custom_self:
            Unlike many opcodes, this one does not write any output to
            the register file.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_getter)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
         int function = vPC[3].u.operand;
@@ -4674,6 +5279,12 @@ skip_id_custom_self:
            Unlike many opcodes, this one does not write any output to
            the register file.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_put_setter)" << std::endl;
+#endif
+
+
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
         int function = vPC[3].u.operand;
@@ -4688,6 +5299,12 @@ skip_id_custom_self:
         NEXT_INSTRUCTION();
     }
     DEFINE_OPCODE(op_method_check) {
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_method_check)" << std::endl;
+#endif
+
+
         vPC++;
         NEXT_INSTRUCTION();
     }
@@ -4697,6 +5314,12 @@ skip_id_custom_self:
            Places the address of the next instruction into the retAddrDst
            register and jumps to offset target from the current instruction.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_jsr)" << std::endl;
+#endif
+
+
         int retAddrDst = vPC[1].u.operand;
         int target = vPC[2].u.operand;
         callFrame->r(retAddrDst) = vPC + OPCODE_LENGTH(op_jsr);
@@ -4711,6 +5334,12 @@ skip_id_custom_self:
          differs from op_jmp because the target address is stored in a
          register, not as an immediate.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_sret)" << std::endl;
+#endif
+
+
         int retAddrSrc = vPC[1].u.operand;
         vPC = callFrame->r(retAddrSrc).vPC();
         NEXT_INSTRUCTION();
@@ -4721,6 +5350,12 @@ skip_id_custom_self:
          Notifies the debugger of the current state of execution. This opcode
          is only generated while the debugger is attached.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_debug)" << std::endl;
+#endif
+
+
         int debugHookID = vPC[1].u.operand;
         int firstLine = vPC[2].u.operand;
         int lastLine = vPC[3].u.operand;
@@ -4736,6 +5371,12 @@ skip_id_custom_self:
          Notifies the profiler of the beginning of a function call. This opcode
          is only generated if developer tools are enabled.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_profile_will_call)" << std::endl;
+#endif
+
+
         int function = vPC[1].u.operand;
 
         if (*enabledProfilerReference)
@@ -4750,6 +5391,12 @@ skip_id_custom_self:
          Notifies the profiler of the end of a function call. This opcode
          is only generated if developer tools are enabled.
         */
+
+#if defined(JSC_TAINTED_I_DEBUG)
+std::cerr << "DEFINE_OPCODE(op_profile_did_call)" << std::endl;
+#endif
+
+
         int function = vPC[1].u.operand;
 
         if (*enabledProfilerReference)

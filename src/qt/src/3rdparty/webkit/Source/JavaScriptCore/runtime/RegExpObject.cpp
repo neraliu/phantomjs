@@ -18,6 +18,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "RegExpObject.h"
 
@@ -31,6 +38,11 @@
 #include "RegExpPrototype.h"
 #include "UStringConcatenate.h"
 #include <wtf/PassOwnPtr.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedUtils.h"
+#include "TaintedTrace.h"
+#endif
 
 namespace JSC {
 
@@ -131,6 +143,26 @@ JSValue RegExpObject::test(ExecState* exec)
 
 JSValue RegExpObject::exec(ExecState* exec)
 {
+#if defined(JSC_TAINTED)
+    JSValue thisValue = exec->argument(0);
+
+    unsigned int tainted = TaintedUtils::isTainted(exec, thisValue);
+    if (tainted) {
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "stringProtoFuncReplace::exec";
+        trace_struct.jsfunc = "RegExp.exec";
+        trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(thisValue.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "RegExpObject::exec:" << tainted << std::endl;
+#endif
+#endif
+
     if (match(exec))
         return exec->lexicalGlobalObject()->regExpConstructor()->arrayOfMatches(exec);
     return jsNull();

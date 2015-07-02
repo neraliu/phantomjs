@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSDocument.h"
 
@@ -94,6 +101,13 @@
 #include <runtime/JSString.h>
 #include <wtf/GetPtr.h>
 
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
+
 using namespace JSC;
 
 namespace WebCore {
@@ -107,7 +121,11 @@ ASSERT_CLASS_FITS_IN_CELL(JSDocument);
 #define THUNK_GENERATOR(generator)
 #endif
 
-static const HashTableValue JSDocumentTableValues[79] =
+#if defined(JSC_TAINTED)
+static const HashTableValue JSDocumentTableValues[80] =
+#else
+static const HashTableValue JSDocumentTableValues[78] =
+#endif
 {
     { "doctype", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsDocumentDoctype), (intptr_t)0 THUNK_GENERATOR(0) },
     { "implementation", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsDocumentImplementation), (intptr_t)0 THUNK_GENERATOR(0) },
@@ -196,6 +214,10 @@ static const HashTableValue JSDocumentTableValues[79] =
 #if ENABLE(FULLSCREEN_API)
     { "onwebkitfullscreenchange", DontDelete | DontEnum, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsDocumentOnwebkitfullscreenchange), (intptr_t)setJSDocumentOnwebkitfullscreenchange THUNK_GENERATOR(0) },
 #endif
+#if defined(JSC_TAINTED)
+    { "tainted", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsDocumentTainted), (intptr_t)0 THUNK_GENERATOR(0) },
+    { "taintedTrace", DontDelete | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsDocumentTaintedTrace), (intptr_t)0 THUNK_GENERATOR(0) },
+#endif
     { "constructor", DontEnum | ReadOnly, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsDocumentConstructor), (intptr_t)0 THUNK_GENERATOR(0) },
     { 0, 0, 0, 0 THUNK_GENERATOR(0) }
 };
@@ -257,7 +279,11 @@ bool JSDocumentConstructor::getOwnPropertyDescriptor(ExecState* exec, const Iden
 #define THUNK_GENERATOR(generator)
 #endif
 
+#if defined(JSC_TAINTED)
+static const HashTableValue JSDocumentPrototypeTableValues[41] =
+#else
 static const HashTableValue JSDocumentPrototypeTableValues[40] =
+#endif
 {
     { "createElement", DontDelete | Function, (intptr_t)static_cast<NativeFunction>(jsDocumentPrototypeFunctionCreateElement), (intptr_t)1 THUNK_GENERATOR(0) },
     { "createDocumentFragment", DontDelete | Function, (intptr_t)static_cast<NativeFunction>(jsDocumentPrototypeFunctionCreateDocumentFragment), (intptr_t)0 THUNK_GENERATOR(0) },
@@ -298,6 +324,9 @@ static const HashTableValue JSDocumentPrototypeTableValues[40] =
     { "querySelectorAll", DontDelete | Function, (intptr_t)static_cast<NativeFunction>(jsDocumentPrototypeFunctionQuerySelectorAll), (intptr_t)1 THUNK_GENERATOR(0) },
     { "createTouch", DontDelete | Function, (intptr_t)static_cast<NativeFunction>(jsDocumentPrototypeFunctionCreateTouch), (intptr_t)7 THUNK_GENERATOR(0) },
     { "createTouchList", DontDelete | Function, (intptr_t)static_cast<NativeFunction>(jsDocumentPrototypeFunctionCreateTouchList), (intptr_t)0 THUNK_GENERATOR(0) },
+#if defined(JSC_TAINTED)
+    { "clearTaintedTrace", DontDelete | Function, (intptr_t)static_cast<NativeFunction>(jsDocumentClearTaintedTrace), (intptr_t)0 THUNK_GENERATOR(0) },
+#endif
     { 0, 0, 0, 0 THUNK_GENERATOR(0) }
 };
 
@@ -409,6 +438,21 @@ JSValue jsDocumentDocumentURI(ExecState* exec, JSValue slotBase, const Identifie
     UNUSED_PARAM(exec);
     Document* imp = static_cast<Document*>(castedThis->impl());
     JSValue result = jsStringOrNull(exec, imp->documentURI());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsDocumentDocumentURI";
+    trace_struct.jsfunc = "document.documentURI";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -449,6 +493,21 @@ JSValue jsDocumentReferrer(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Document* imp = static_cast<Document*>(castedThis->impl());
     JSValue result = jsString(exec, imp->referrer());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsDocumentReferrer";
+    trace_struct.jsfunc = "document.referrer";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -469,6 +528,21 @@ JSValue jsDocumentURL(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Document* imp = static_cast<Document*>(castedThis->impl());
     JSValue result = jsString(exec, imp->url());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsDocumentURL";
+    trace_struct.jsfunc = "document.URL";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -480,6 +554,21 @@ JSValue jsDocumentCookie(ExecState* exec, JSValue slotBase, const Identifier&)
     Document* imp = static_cast<Document*>(castedThis->impl());
     JSC::JSValue result = jsString(exec, imp->cookie(ec));
     setDOMException(exec, ec);
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsDocumentCookie";
+    trace_struct.jsfunc = "document.cookie";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -566,6 +655,9 @@ JSValue jsDocumentLastModified(ExecState* exec, JSValue slotBase, const Identifi
 
 JSValue jsDocumentLocation(ExecState* exec, JSValue slotBase, const Identifier&)
 {
+#if defined(JSC_TAINTED)
+// implement @ bindings/js/JSLocationCustom.cpp toStringFunction()
+#endif
     JSDocument* castedThis = static_cast<JSDocument*>(asObject(slotBase));
     return castedThis->location(exec);
 }
@@ -1341,6 +1433,37 @@ JSValue jsDocumentOnwebkitfullscreenchange(ExecState* exec, JSValue slotBase, co
 
 #endif
 
+#if defined(JSC_TAINTED)
+JSValue jsDocumentTainted(ExecState* exec, JSValue slotBase, const Identifier&)
+{
+    JSDocument* castedThis = static_cast<JSDocument*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    Document* imp = static_cast<Document*>(castedThis->impl());
+    JSValue result = jsNumber(imp->tainted());
+    return result;
+}
+
+JSValue jsDocumentTaintedTrace(ExecState* exec, JSValue slotBase, const Identifier&)
+{
+    JSDocument* castedThis = static_cast<JSDocument*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    Document* imp = static_cast<Document*>(castedThis->impl());
+    JSValue result = jsString(exec, imp->taintedTrace());
+    return result;
+}
+
+EncodedJSValue JSC_HOST_CALL jsDocumentClearTaintedTrace(ExecState* exec)
+{
+    JSValue thisValue = exec->hostThisValue();
+    if (!thisValue.inherits(&JSDocument::s_info))
+        return throwVMTypeError(exec);
+
+    JSDocument* castedThis = static_cast<JSDocument*>(asObject(thisValue));
+    Document* imp = static_cast<Document*>(castedThis->impl());
+    return JSValue::encode(jsBoolean(imp->clearTaintedTrace()));
+}
+#endif
+
 JSValue jsDocumentConstructor(ExecState* exec, JSValue slotBase, const Identifier&)
 {
     JSDocument* domObject = static_cast<JSDocument*>(asObject(slotBase));
@@ -1405,6 +1528,22 @@ void setJSDocumentCookie(ExecState* exec, JSObject* thisObject, JSValue value)
     ExceptionCode ec = 0;
     imp->setCookie(valueToStringWithNullCheck(exec, value), ec);
     setDOMException(exec, ec);
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+	imp->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSDocumentCookie";
+	trace_struct.jsfunc = "document.cookie";
+        trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
 }
 
 
@@ -1420,6 +1559,23 @@ void setJSDocumentBody(ExecState* exec, JSObject* thisObject, JSValue value)
 
 void setJSDocumentLocation(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    JSDocument* castedThis = static_cast<JSDocument*>(thisObject);
+    Document* imp = static_cast<Document*>(castedThis->impl());
+    if (tainted) {
+	imp->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSDocumentLocation";
+	trace_struct.jsfunc = "document.location";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSDocument*>(thisObject)->setLocation(exec, value);
 }
 

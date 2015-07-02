@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSHTMLElement.h"
 
@@ -35,6 +42,13 @@
 #include <runtime/Error.h>
 #include <runtime/JSString.h>
 #include <wtf/GetPtr.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace JSC;
 
@@ -275,6 +289,22 @@ JSValue jsHTMLElementInnerHTML(ExecState* exec, JSValue slotBase, const Identifi
     UNUSED_PARAM(exec);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     JSValue result = jsString(exec, imp->innerHTML());
+#if defined(JSC_TAINTED)
+    if (imp->tainted()) {
+        unsigned int tainted = imp->tainted();
+        result.setTainted(imp->tainted());
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "jsHTMLElementInnerHTML";
+        trace_struct.jsfunc = "htmlelement.innerHTML";
+        trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     return result;
 }
 
@@ -285,6 +315,22 @@ JSValue jsHTMLElementInnerText(ExecState* exec, JSValue slotBase, const Identifi
     UNUSED_PARAM(exec);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     JSValue result = jsString(exec, imp->innerText());
+#if defined(JSC_TAINTED)
+    if (imp->tainted()) {
+        unsigned int tainted = imp->tainted();
+        result.setTainted(imp->tainted());
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "jsHTMLElementInnerText";
+        trace_struct.jsfunc = "htmlelement.innerText";
+        trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     return result;
 }
 
@@ -295,6 +341,22 @@ JSValue jsHTMLElementOuterHTML(ExecState* exec, JSValue slotBase, const Identifi
     UNUSED_PARAM(exec);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     JSValue result = jsString(exec, imp->outerHTML());
+#if defined(JSC_TAINTED)
+    if (imp->tainted()) {
+        unsigned int tainted = imp->tainted();
+        result.setTainted(imp->tainted());
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "jsHTMLElementOuterHTML";
+        trace_struct.jsfunc = "htmlelement.outerHTML";
+        trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     return result;
 }
 
@@ -305,6 +367,22 @@ JSValue jsHTMLElementOuterText(ExecState* exec, JSValue slotBase, const Identifi
     UNUSED_PARAM(exec);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     JSValue result = jsString(exec, imp->outerText());
+#if defined(JSC_TAINTED)
+    if (imp->tainted()) {
+        unsigned int tainted = imp->tainted();
+        result.setTainted(imp->tainted());
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "jsHTMLElementOuterText";
+        trace_struct.jsfunc = "htmlelement.outerText";
+        trace_struct.action = "propagate";
+	trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     return result;
 }
 
@@ -423,44 +501,236 @@ void setJSHTMLElementHidden(ExecState* exec, JSObject* thisObject, JSValue value
     imp->setBooleanAttribute(WebCore::HTMLNames::hiddenAttr, value.toBoolean(exec));
 }
 
-
+/*
+|-------------------|	  |----------------|	       |------------------------------|
+| string passing in | --> | is it tainted? | --> Y --> | taint the element / document | (bad approach, need to reset the document taint)
+|___________________|	  |________________|	       |______________________________| 
+					   |
+					   |	       |-------------------|
+					   | --> Y --> | taint the element | (best approach)
+						       |-------------------|
+the ideal implementation is to set the element as tainted only (no need to set the doucment as tainted), and then the js can detect the element is tainted or not.
+however, i found that js level detection does not work for the element now, so i tainted the document for reporting.
+this method has the side effect, if the element is untatined, then we need to clear the tainted flag of the document.
+*/
 void setJSHTMLElementInnerHTML(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+#endif
     JSHTMLElement* castedThis = static_cast<JSHTMLElement*>(thisObject);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     ExceptionCode ec = 0;
     imp->setInnerHTML(valueToStringWithNullCheck(exec, value), ec);
     setDOMException(exec, ec);
+#if defined(JSC_TAINTED)
+    unsigned int imp_tainted = imp->tainted();
+
+    if (tainted) {
+// cerr 
+/*
+	char cid[50];
+	JSValue id = jsString(exec, imp->getAttribute(WebCore::HTMLNames::idAttr));
+	UString sid = id.toString(exec);
+	snprintf(cid, 50, "%s", sid.utf8(true).data());
+	cerr << "setJSHTMLElementInnerHTML:SETTING:" << cid << ":" << tainted << ":" << imp_tainted << endl;
+*/
+// cerr
+
+	//
+	// i dont know why this tainted flag cannot be queried from js level
+	// seems like the HTML element is persistent, but it is not the right HTML element, so need to loop through and find out
+	//
+    	imp->setTainted(tainted);
+	imp->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSHTMLElementInnerHTML";
+	trace_struct.jsfunc = "HTMLElement.innerHTML";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    // 
+    // this condition really difficult to understand. 
+    // wanna to reset the innerHTML of this element if it is tainted and passing in string is not tainted.
+    // there is a problem in this code, it is silly to do it, as if the imp->setTainted() is supposed to be work, then there is no need to do in this way.
+    //
+    } else if (imp_tainted == imp->document()->tainted() 
+	&& imp_tainted != 0
+	&& !tainted) {
+
+// cerr
+/*
+	char cid[50];
+	JSValue id = jsString(exec, imp->getAttribute(WebCore::HTMLNames::idAttr));
+	UString sid = id.toString(exec);
+	snprintf(cid, 50, "%s", sid.utf8(true).data());
+	cerr << "setJSHTMLElementInnerHTML:RESETTING:" << cid << endl;
+*/
+// cerr
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = 0;
+	// trace_struct.taintedno = imp_tainted;
+	trace_struct.internalfunc = "setJSHTMLElementInnerHTML";
+	trace_struct.jsfunc = "HTMLElement.innerHTML";
+	trace_struct.action = "reset";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    	imp->setTainted(0);
+    }
+#endif
 }
 
 
 void setJSHTMLElementInnerText(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+#endif
     JSHTMLElement* castedThis = static_cast<JSHTMLElement*>(thisObject);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     ExceptionCode ec = 0;
     imp->setInnerText(valueToStringWithNullCheck(exec, value), ec);
     setDOMException(exec, ec);
+#if defined(JSC_TAINTED)
+    unsigned int imp_tainted = imp->tainted();
+
+    if (tainted) {
+    	imp->setTainted(tainted);
+	imp->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSHTMLElementInnerText";
+	trace_struct.jsfunc = "HTMLElement.innerText";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    } else if (imp_tainted == imp->document()->tainted() 
+	&& imp_tainted != 0
+	&& !tainted) {
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = 0;
+	// trace_struct.taintedno = imp_tainted;
+	trace_struct.internalfunc = "setJSHTMLElementInnerText";
+	trace_struct.jsfunc = "HTMLElement.innerText";
+	trace_struct.action = "reset";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    	imp->setTainted(0);
+    }
+#endif
 }
 
 
 void setJSHTMLElementOuterHTML(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+#endif
     JSHTMLElement* castedThis = static_cast<JSHTMLElement*>(thisObject);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     ExceptionCode ec = 0;
     imp->setOuterHTML(valueToStringWithNullCheck(exec, value), ec);
     setDOMException(exec, ec);
+#if defined(JSC_TAINTED)
+    unsigned int imp_tainted = imp->tainted();
+
+    if (tainted) {
+    	imp->setTainted(tainted);
+	imp->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSHTMLElementOuterHTML";
+	trace_struct.jsfunc = "HTMLElement.outerHTML";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    } else if (imp_tainted == imp->document()->tainted() 
+	&& imp_tainted != 0
+	&& !tainted) {
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = 0;
+	// trace_struct.taintedno = imp_tainted;
+	trace_struct.internalfunc = "setJSHTMLElementOuterHTML";
+	trace_struct.jsfunc = "HTMLElement.outerHTML";
+	trace_struct.action = "reset";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    	imp->setTainted(0);
+    }
+#endif
 }
 
 
 void setJSHTMLElementOuterText(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+#endif
     JSHTMLElement* castedThis = static_cast<JSHTMLElement*>(thisObject);
     HTMLElement* imp = static_cast<HTMLElement*>(castedThis->impl());
     ExceptionCode ec = 0;
     imp->setOuterText(valueToStringWithNullCheck(exec, value), ec);
     setDOMException(exec, ec);
+#if defined(JSC_TAINTED)
+    unsigned int imp_tainted = imp->tainted();
+
+    if (tainted) {
+    	imp->setTainted(tainted);
+	imp->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSHTMLElementOuterText";
+	trace_struct.jsfunc = "HTMLElement.outerText";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    } else if (imp_tainted == imp->document()->tainted() 
+	&& imp_tainted != 0
+	&& !tainted) {
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = 0;
+	// trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSHTMLElementOuterText";
+	trace_struct.jsfunc = "HTMLElement.outerText";
+	trace_struct.action = "reset";
+	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+    	imp->setTainted(0);
+    }
+#endif
 }
 
 

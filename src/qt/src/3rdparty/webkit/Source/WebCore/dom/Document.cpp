@@ -24,6 +24,13 @@
  * Boston, MA 02110-1301, USA.
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "Document.h"
 
@@ -491,6 +498,10 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     m_docID = docID++;
 #if ENABLE(XHTMLMP)
     m_shouldProcessNoScriptElement = !(m_frame && m_frame->script()->canExecuteScripts(NotAboutToExecuteScript));
+#endif
+
+#if defined(JSC_TAINTED)
+    m_tainted = 0;
 #endif
 }
 
@@ -5046,5 +5057,31 @@ PassRefPtr<TouchList> Document::createTouchList(ExceptionCode&) const
     return TouchList::create();
 }
 #endif
+
+const String Document::taintedTrace() 
+{ 
+	String m_taintedTrace;
+	JSC::TaintedTrace* trace = JSC::TaintedTrace::getInstance();
+	vector<JSC::TaintedStructure> v = trace->getTrace();
+	for (std::vector<JSC::TaintedStructure>::iterator it = v.begin(); it != v.end(); ++it) {
+		// NERA: i need to research how type conversion more safer later.
+		char c[10];
+		snprintf(c, 10, "%d", it->taintedno);
+		// String s1(c); String s2(it->internalfunc.c_str()); String s3(it->jsfunc.c_str()); String s4(it->action.c_str());
+		String s1(c); String s2(it->internalfunc.c_str()); String s3(it->jsfunc.c_str()); String s4(it->action.c_str()); String s5(it->value.c_str());
+m_taintedTrace = m_taintedTrace + "<trace><taintedno>"+s1+"</taintedno><internalfunc>"+s2+"</internalfunc><jsfunc>"+s3+"</jsfunc><action>"+s4+"</action><value><![CDATA["+s5+"]]></value></trace>";
+		// std::cerr << it->taintedno << ' ' << it->internalfunc << ' ' << it->jsfunc << std::endl;
+	}
+	return m_taintedTrace;
+}
+
+bool Document::clearTaintedTrace() 
+{
+	JSC::TaintedTrace* trace = JSC::TaintedTrace::getInstance();
+	trace->clearTrace();
+        JSC::TaintedCounter* counter = JSC::TaintedCounter::getInstance();
+        counter->resetCount();
+	return true;
+}
 
 } // namespace WebCore

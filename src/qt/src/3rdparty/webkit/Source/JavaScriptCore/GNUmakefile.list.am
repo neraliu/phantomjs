@@ -385,6 +385,14 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/runtime/Structure.h \
 	Source/JavaScriptCore/runtime/StructureTransitionTable.h \
 	Source/JavaScriptCore/runtime/SymbolTable.h \
+	Source/JavaScriptCore/runtime/TaintedCounter.cpp \
+	Source/JavaScriptCore/runtime/TaintedCounter.h \
+	Source/JavaScriptCore/runtime/TaintedTrace.cpp \
+	Source/JavaScriptCore/runtime/TaintedTrace.h \
+	Source/JavaScriptCore/runtime/TaintedHashMap.cpp \
+	Source/JavaScriptCore/runtime/TaintedHashMap.h \
+	Source/JavaScriptCore/runtime/TaintedUtils.cpp \
+	Source/JavaScriptCore/runtime/TaintedUtils.h \
 	Source/JavaScriptCore/runtime/Terminator.h \
 	Source/JavaScriptCore/runtime/TimeoutChecker.cpp \
 	Source/JavaScriptCore/runtime/TimeoutChecker.h \

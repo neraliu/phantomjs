@@ -20,6 +20,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSCell.h"
 
@@ -27,6 +34,10 @@
 #include "JSString.h"
 #include "JSObject.h"
 #include <wtf/MathExtras.h>
+
+#if defined(JSC_TAINTED)
+#include "StringObject.h"
+#endif
 
 namespace JSC {
 
@@ -78,6 +89,35 @@ extern const double Inf = NaNInf.doubles.Inf_Double;
 
 const ClassInfo JSCell::s_dummyCellInfo = { "DummyCell", 0, 0, 0 };
 
+#if defined(JSC_TAINTED)
+// The JSValue class itself does not have the tainted flag, the tainted flag is located in the UString class wrapped by JSString and StringObject.
+unsigned int JSValue::isTainted() const
+{
+    if (isString()) {
+        return asString(*this)->isTainted();
+    } else if (isObject()) {
+	if (this->inherits(&StringObject::s_info)) {
+            return asStringObject(*this)->isTainted();
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+}
+
+void JSValue::setTainted(unsigned int tainted)
+{
+    if (isString()) {
+        asString(*this)->setTainted(tainted);
+    } else if (isObject()) {
+	if (this->inherits(&StringObject::s_info)) {
+            return asStringObject(*this)->setTainted(tainted);
+        }
+    }
+}
+#endif
+
 bool JSCell::getUInt32(uint32_t&) const
 {
     return false;
@@ -93,6 +133,9 @@ bool JSCell::getString(ExecState* exec, UString&stringValue) const
 
 UString JSCell::getString(ExecState* exec) const
 {
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "JSCell::getString()" << std::endl;
+#endif
     return isString() ? static_cast<const JSString*>(this)->value(exec) : UString();
 }
 

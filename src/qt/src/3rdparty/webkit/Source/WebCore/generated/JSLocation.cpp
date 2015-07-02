@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSLocation.h"
 
@@ -30,9 +37,84 @@
 #include <runtime/JSString.h>
 #include <wtf/GetPtr.h>
 
+#if defined(JSC_TAINTED)
+#include "Frame.h"
+#include "Document.h"
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include "JSStringBuilder.h"
+#include "Lexer.h"
+#include <wtf/unicode/UTF8.h>
+#include <sstream>
+#endif
+
 using namespace JSC;
 
 namespace WebCore {
+
+/* this is copied from the file ../JavaScriptCore/runtime/JSGlobalObjectFunctions.cpp, should consolidate in later */
+static JSValue decode(ExecState *exec, const UString& str, const char* doNotUnescape, bool strict)
+{
+    JSStringBuilder builder;
+    int k = 0;
+    int len = str.length();
+    const UChar* d = str.characters();
+    UChar u = 0;
+    while (k < len) {
+        const UChar* p = d + k;
+        UChar c = *p;
+        if (c == '%') {
+            int charLen = 0;
+            if (k <= len - 3 && isASCIIHexDigit(p[1]) && isASCIIHexDigit(p[2])) {
+                const char b0 = Lexer::convertHex(p[1], p[2]);
+                const int sequenceLen = WTF::Unicode::UTF8SequenceLength(b0);
+                if (sequenceLen != 0 && k <= len - sequenceLen * 3) {
+                    charLen = sequenceLen * 3;
+                    char sequence[5];
+                    sequence[0] = b0;
+                    for (int i = 1; i < sequenceLen; ++i) {
+                        const UChar* q = p + i * 3;
+                        if (q[0] == '%' && isASCIIHexDigit(q[1]) && isASCIIHexDigit(q[2]))
+                            sequence[i] = Lexer::convertHex(q[1], q[2]);
+                        else {
+                            charLen = 0;
+                            break;
+                        }
+                    }
+                    if (charLen != 0) {
+                        sequence[sequenceLen] = 0;
+                        const int character = WTF::Unicode::decodeUTF8Sequence(sequence);
+                        if (character < 0 || character >= 0x110000)
+                            charLen = 0;
+                        else if (character >= 0x10000) {
+			    builder.append(static_cast<UChar>(0xD800 | ((character - 0x10000) >> 10)));
+                            u = static_cast<UChar>(0xDC00 | ((character - 0x10000) & 0x3FF));
+                        } else
+                            u = static_cast<UChar>(character);
+                    }
+                }
+            }
+            if (charLen == 0) {
+                if (strict)
+                    return throwError(exec, createURIError(exec, "URI error"));
+		if (k <= len - 6 && p[1] == 'u'
+                        && isASCIIHexDigit(p[2]) && isASCIIHexDigit(p[3])
+                        && isASCIIHexDigit(p[4]) && isASCIIHexDigit(p[5])) {
+                    charLen = 6;
+                    u = Lexer::convertUnicode(p[2], p[3], p[4], p[5]);
+                }
+            }
+            if (charLen && (u == 0 || u >= 128 || !strchr(doNotUnescape, u))) {
+                c = u;
+                k += charLen - 1;
+            }
+        }
+        k++;
+        builder.append(c);
+    }
+    return builder.build(exec);
+}
 
 ASSERT_CLASS_FITS_IN_CELL(JSLocation);
 
@@ -136,7 +218,30 @@ JSValue jsLocationHref(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->href());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationHref";
+    trace_struct.jsfunc = "location.href";
+    trace_struct.action = "source";
+    /* as Chrome and FF does not escape the location.hash, 
+       so we decode it once when reading it, such that 
+       we can cover the domxss case for chrome and FF browser */
+    // trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+    JSValue s = decode(exec, result.toString(exec), "", true);
+    s.setTainted(tainted);
+    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+    return s;
+#else 
     return result;
+#endif
 }
 
 
@@ -146,6 +251,21 @@ JSValue jsLocationProtocol(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->protocol());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationProtocol";
+    trace_struct.jsfunc = "location.protocol";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -156,6 +276,21 @@ JSValue jsLocationHost(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->host());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationHost";
+    trace_struct.jsfunc = "location.host";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -166,6 +301,21 @@ JSValue jsLocationHostname(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->hostname());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationHostname";
+    trace_struct.jsfunc = "location.hostname";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -176,6 +326,21 @@ JSValue jsLocationPort(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->port());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationPort";
+    trace_struct.jsfunc = "location.port";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -186,6 +351,21 @@ JSValue jsLocationPathname(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->pathname());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationPathname";
+    trace_struct.jsfunc = "location.pathname";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -196,6 +376,21 @@ JSValue jsLocationSearch(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->search());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationSearch";
+    trace_struct.jsfunc = "location.search";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -206,7 +401,30 @@ JSValue jsLocationHash(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->hash());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationHash";
+    trace_struct.jsfunc = "location.hash";
+    trace_struct.action = "source";
+    /* as Chrome and FF does not escape the location.hash, 
+       so we decode it once when reading it, such that 
+       we can cover the domxss case for chrome and FF browser */
+    // trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+    JSValue s = decode(exec, result.toString(exec), "", true);
+    s.setTainted(tainted);
+    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+    return s;
+#else
     return result;
+#endif
 }
 
 
@@ -216,6 +434,21 @@ JSValue jsLocationOrigin(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     Location* imp = static_cast<Location*>(castedThis->impl());
     JSValue result = jsString(exec, imp->origin());
+#if defined(JSC_TAINTED)
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    result.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "jsLocationOrigin";
+    trace_struct.jsfunc = "location.origin";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+#endif
     return result;
 }
 
@@ -229,48 +462,192 @@ void JSLocation::put(ExecState* exec, const Identifier& propertyName, JSValue va
 
 void setJSLocationHref(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationHref";
+	trace_struct.jsfunc = "location.href";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setHref(exec, value);
 }
 
 
 void setJSLocationProtocol(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationProtocol";
+	trace_struct.jsfunc = "location.protocol";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setProtocol(exec, value);
 }
 
 
 void setJSLocationHost(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationHost";
+	trace_struct.jsfunc = "location.host";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setHost(exec, value);
 }
 
 
 void setJSLocationHostname(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationHostname";
+	trace_struct.jsfunc = "location.hostname";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setHostname(exec, value);
 }
 
 
 void setJSLocationPort(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationPort";
+	trace_struct.jsfunc = "location.port";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setPort(exec, value);
 }
 
 
 void setJSLocationPathname(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationPathname";
+	trace_struct.jsfunc = "location.pathname";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setPathname(exec, value);
 }
 
 
 void setJSLocationSearch(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationSearch";
+	trace_struct.jsfunc = "location.search";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setSearch(exec, value);
 }
 
 
 void setJSLocationHash(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSLocation* castedThis = static_cast<JSLocation*>(thisObject);
+	Location* imp = static_cast<Location*>(castedThis->impl());
+        imp->frame()->document()->setTainted(tainted);
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSLocationHash";
+	trace_struct.jsfunc = "location.hash";
+	trace_struct.action = "sink";
+    	trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSLocation*>(thisObject)->setHash(exec, value);
 }
 
@@ -320,6 +697,9 @@ EncodedJSValue JSC_HOST_CALL jsLocationPrototypeFunctionGetParameter(ExecState* 
 
 EncodedJSValue JSC_HOST_CALL jsLocationPrototypeFunctionToString(ExecState* exec)
 {
+#if defined(JSC_TAINTED)
+// implement @ bindings/js/JSLocationCustom.cpp toStringFunction()
+#endif
     JSValue thisValue = exec->hostThisValue();
     if (!thisValue.inherits(&JSLocation::s_info))
         return throwVMTypeError(exec);

@@ -22,7 +22,7 @@ contains(QT_CONFIG, embedded):CONFIG += embedded
 contains(QT_CONFIG, reduce_exports):CONFIG += hide_symbols
 unix:contains(QT_CONFIG, reduce_relocations):CONFIG += bsymbolic_functions
 
-!CONFIG(webkit-debug):CONFIG(QTDIR_build) {
+CONFIG(QTDIR_build) {
     # Remove the following 2 lines if you want debug information in JavaScriptCore
     CONFIG -= separate_debug_info
     CONFIG += no_debug_info
@@ -197,6 +197,10 @@ SOURCES += \
     runtime/StringRecursionChecker.cpp \
     runtime/StructureChain.cpp \
     runtime/Structure.cpp \
+    runtime/TaintedCounter.cpp \
+    runtime/TaintedTrace.cpp \
+    runtime/TaintedHashMap.cpp \
+    runtime/TaintedUtils.cpp \
     runtime/TimeoutChecker.cpp \
     runtime/UString.cpp \
     yarr/YarrJIT.cpp \

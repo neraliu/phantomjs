@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSHTMLInputElement.h"
 
@@ -42,6 +49,13 @@
 #include <runtime/Error.h>
 #include <runtime/JSString.h>
 #include <wtf/GetPtr.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace JSC;
 
@@ -532,6 +546,22 @@ JSValue jsHTMLInputElementValue(ExecState* exec, JSValue slotBase, const Identif
     UNUSED_PARAM(exec);
     HTMLInputElement* imp = static_cast<HTMLInputElement*>(castedThis->impl());
     JSValue result = jsString(exec, imp->value());
+#if defined(JSC_TAINTED)
+    if (imp->tainted()) {
+	unsigned int tainted = imp->tainted();
+        result.setTainted(imp->tainted());
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "jsHTMLInputElementValue";
+	trace_struct.jsfunc = "input.value";
+	trace_struct.action = "propagate";
+        trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+#endif
     return result;
 }
 
@@ -882,6 +912,23 @@ void setJSHTMLInputElementValue(ExecState* exec, JSObject* thisObject, JSValue v
     JSHTMLInputElement* castedThis = static_cast<JSHTMLInputElement*>(thisObject);
     HTMLInputElement* imp = static_cast<HTMLInputElement*>(castedThis->impl());
     imp->setValue(valueToStringWithNullCheck(exec, value));
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        TaintedStructure trace_struct;
+ 	trace_struct.taintedno = tainted;
+	trace_struct.internalfunc = "setJSHTMLInputElementValue";
+	trace_struct.jsfunc = "input.value";
+	trace_struct.action = "propagate";
+        trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+
+	// imp->document()->setTainted(tainted);
+	imp->setTainted(tainted);
+    }
+#endif
 }
 
 

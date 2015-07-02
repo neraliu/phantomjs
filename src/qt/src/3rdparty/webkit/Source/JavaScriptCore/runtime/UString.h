@@ -20,17 +20,56 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #ifndef UString_h
 #define UString_h
 
+#include "config.h"
 #include <wtf/text/StringImpl.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedHashMap.h"
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <stdio.h>
+#endif
 
 namespace JSC {
 
 class UString {
 public:
     // Construct a null string, distinguishable from an empty string.
+#if defined(JSC_TAINTED)
+
+#if defined(JSC_TAINTED_HASHMAP)
+    UString() {
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->add(getUStringAddr(), 0);
+    }
+
+    // copy constructor
+    UString(const UString& u) {
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << getUStringAddr() << ":UString::UString():" << UString::getUStringAddr(u) << std::endl;
+#endif
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->add(getUStringAddr(), map->get(UString::getUStringAddr(u)));
+	m_impl = u.m_impl;
+    }
+#elif defined(JSC_TAINTED_EXTENDED)
+    UString() { m_tainted = 0; } 
+#endif
+
+#else
     UString() { }
+#endif
 
     // Construct a string with UTF-16 data.
     UString(const UChar* characters, unsigned length);
@@ -45,12 +84,38 @@ public:
     UString(const char* characters);
 
     // Construct a string referencing an existing StringImpl.
+#if defined(JSC_TAINTED)
+
+#if defined(JSC_TAINTED_HASHMAP)
+    UString(StringImpl* impl) : m_impl(impl) {
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->add(getUStringAddr(), 0);
+    }
+    UString(PassRefPtr<StringImpl> impl) : m_impl(impl) {
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->add(getUStringAddr(), 0);
+    }
+    UString(RefPtr<StringImpl> impl) : m_impl(impl) {
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->add(getUStringAddr(), 0);
+    }
+#elif defined(JSC_TAINTED_EXTENDED)
+    UString(StringImpl* impl) : m_impl(impl) { m_tainted = 0; } 
+    UString(PassRefPtr<StringImpl> impl) : m_impl(impl) { m_tainted = 0; } 
+    UString(RefPtr<StringImpl> impl) : m_impl(impl) { m_tainted = 0; } 
+#endif
+
+#else
     UString(StringImpl* impl) : m_impl(impl) { }
     UString(PassRefPtr<StringImpl> impl) : m_impl(impl) { }
     UString(RefPtr<StringImpl> impl) : m_impl(impl) { }
+#endif
 
     // Inline the destructor.
-    ALWAYS_INLINE ~UString() { }
+    ALWAYS_INLINE ~UString() { 
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->remove(getUStringAddr());
+    }
 
     void swap(UString& o) { m_impl.swap(o.m_impl); }
 
@@ -109,8 +174,60 @@ public:
 
     UString substringSharingImpl(unsigned pos, unsigned len = UINT_MAX) const;
 
+#if defined(JSC_TAINTED)
+    unsigned int isTainted() const
+    {
+#if defined(JSC_TAINTED_HASHMAP)
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	return map->get(getUStringAddr());
+#elif defined(JSC_TAINTED_EXTENDED)
+	return this->m_tainted;
+#endif
+    }
+
+    void setTainted(unsigned int tainted)
+    {
+#if defined(JSC_TAINTED_HASHMAP)
+	TaintedHashMap* map = TaintedHashMap::getInstance();
+	map->update(getUStringAddr(), tainted);
+#elif defined(JSC_TAINTED_EXTENDED)
+    	this->m_tainted = tainted;
+#endif
+    }
+
+    std::string getUStringAddr() const
+    {
+	char loc[16];
+	std::string addr;
+       	std::stringstream msgss;
+	snprintf(loc, 16, "%p", this);
+       	msgss << loc;
+       	msgss >> addr;
+	return addr;
+    }
+
+    static std::string getUStringAddr(const UString& u)
+    {
+	char loc[16];
+	std::string addr;
+       	std::stringstream msgss;
+	snprintf(loc, 16, "%p", &u);
+       	msgss << loc;
+       	msgss >> addr;
+	return addr;
+    }
+#endif
+
 private:
     RefPtr<StringImpl> m_impl;
+#if defined(JSC_TAINTED)
+
+#if defined(JSC_TAINTED_HASHMAP)
+#elif defined(JSC_TAINTED_EXTENDED)
+    unsigned int m_tainted;
+#endif
+
+#endif
 };
 
 ALWAYS_INLINE bool operator==(const UString& s1, const UString& s2)
@@ -154,7 +271,6 @@ ALWAYS_INLINE bool operator==(const UString& s1, const UString& s2)
         return memcmp(d1, d2, size1 * sizeof(UChar)) == 0;
     }
 }
-
 
 inline bool operator!=(const UString& s1, const UString& s2)
 {

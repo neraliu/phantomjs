@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSDOMWindow.h"
 
@@ -396,6 +403,13 @@
 #include <runtime/Error.h>
 #include <runtime/JSString.h>
 #include <wtf/GetPtr.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace JSC;
 
@@ -1189,6 +1203,9 @@ JSValue jsDOMWindowCrypto(ExecState* exec, JSValue slotBase, const Identifier&)
 
 JSValue jsDOMWindowLocation(ExecState* exec, JSValue slotBase, const Identifier&)
 {
+#if defined(JSC_TAINTED)
+// when the JSLocation is converting toString, it will taint the string.
+#endif
     JSDOMWindow* castedThis = static_cast<JSDOMWindow*>(asObject(slotBase));
     return castedThis->location(exec);
 }
@@ -1397,6 +1414,24 @@ JSValue jsDOMWindowName(ExecState* exec, JSValue slotBase, const Identifier&)
     UNUSED_PARAM(exec);
     DOMWindow* imp = static_cast<DOMWindow*>(castedThis->impl());
     JSValue result = jsString(exec, imp->name());
+#if defined(JSC_TAINTED)
+    /* this implemenation has some problems, we should use the window object not document */
+    Document* d = imp->document();
+    if (d->tainted()) {
+	result.setTainted(d->tainted());
+	unsigned int tainted = d->tainted();
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "jsDOMWindowName";
+        trace_struct.jsfunc = "window.name";
+        trace_struct.action = "propagate";
+        trace_struct.value = TaintedUtils::UString2string(result.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     return result;
 }
 
@@ -6009,6 +6044,24 @@ void setJSDOMWindowClientInformation(ExecState* exec, JSObject* thisObject, JSVa
 
 void setJSDOMWindowLocation(ExecState* exec, JSObject* thisObject, JSValue value)
 {
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+        JSDOMWindow* castedThis = static_cast<JSDOMWindow*>(thisObject);
+        DOMWindow* imp = static_cast<DOMWindow*>(castedThis->impl());
+        imp->document()->setTainted(tainted);
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "setJSDOMWindowLocation";
+        trace_struct.jsfunc = "window.location";
+        trace_struct.action = "sink";
+        trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     static_cast<JSDOMWindow*>(thisObject)->setLocation(exec, value);
 }
 
@@ -6136,6 +6189,23 @@ void setJSDOMWindowName(ExecState* exec, JSObject* thisObject, JSValue value)
         return;
     JSDOMWindow* castedThis = static_cast<JSDOMWindow*>(thisObject);
     DOMWindow* imp = static_cast<DOMWindow*>(castedThis->impl());
+#if defined(JSC_TAINTED)
+    unsigned int tainted = TaintedUtils::isTainted(exec, value);
+    if (tainted) {
+    	Document* d = imp->document();
+	d->setTainted(tainted);
+
+        TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "setJSDOMWindowName";
+        trace_struct.jsfunc = "window.name";
+        trace_struct.action = "sink";
+        trace_struct.value = TaintedUtils::UString2string(value.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+#endif
     imp->setName(ustringToString(value.toString(exec)));
 }
 

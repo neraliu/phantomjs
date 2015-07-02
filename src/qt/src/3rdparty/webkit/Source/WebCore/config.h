@@ -19,6 +19,13 @@
  *
  */ 
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #if defined(HAVE_CONFIG_H) && HAVE_CONFIG_H
 #ifdef BUILDING_WITH_CMAKE
 #include "cmakeconfig.h"
@@ -254,3 +261,26 @@ typedef float CGFloat;
 #include <bridge/npruntime_internal.h>
 #endif
 
+#if !defined(JSC_TAINTED)
+#define JSC_TAINTED             	1
+
+#if _WIN32 || _WIN64
+#if _WIN64
+#define JSC_TAINTED_HASHMAP          	1
+#else
+#define JSC_TAINTED_EXTENDED          	1
+#endif
+#endif
+
+#if __GNUC__
+#if __x86_64__ || __ppc64__
+#define JSC_TAINTED_HASHMAP          	1
+#else
+#define JSC_TAINTED_EXTENDED          	1
+#endif
+#endif
+
+// the debug flag of the hack
+// #define JSC_TAINTED_DEBUG    1
+
+#endif /* JSC_TAINTED */

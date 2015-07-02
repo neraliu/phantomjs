@@ -22,6 +22,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #ifndef Element_h
 #define Element_h
 
@@ -343,6 +350,11 @@ public:
 #if ENABLE(SVG)
     virtual bool childShouldCreateRenderer(Node*) const; 
 #endif
+
+#if defined(JSC_TAINTED)
+    unsigned int tainted() const { return m_tainted; }
+    void setTainted(unsigned int tainted) { m_tainted = tainted; }
+#endif
     
 #if ENABLE(FULLSCREEN_API)
     enum {
@@ -357,10 +369,18 @@ public:
     PassRefPtr<WebKitAnimationList> webkitGetAnimations() const;
 
 protected:
+
+#if defined(JSC_TAINTED)
+    unsigned int m_tainted;
+#endif
+
     Element(const QualifiedName& tagName, Document* document, ConstructionType type)
         : ContainerNode(document, type)
         , m_tagName(tagName)
     {
+#if defined(JSC_TAINTED)
+    m_tainted = 0;
+#endif
     }
 
     virtual void insertedIntoDocument();

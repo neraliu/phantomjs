@@ -23,6 +23,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the BSD license.
+ *
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ */
 #include "config.h"
 #include "JSHTMLDocument.h"
 
@@ -43,6 +49,13 @@
 #include <runtime/Error.h>
 #include <runtime/JSCell.h>
 #include <wtf/unicode/CharacterNames.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace JSC;
 
@@ -138,6 +151,21 @@ static inline void documentWrite(ExecState* exec, HTMLDocument* document, Newlin
     size_t size = exec->argumentCount();
 
     UString firstString = exec->argument(0).toString(exec);
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+    if (firstString.isTainted()) {
+	TaintedStructure trace_struct;
+        trace_struct.taintedno = firstString.isTainted();
+        trace_struct.internalfunc = "documentWrite";
+        trace_struct.jsfunc = "document.write/writeln";
+        trace_struct.action = "sink";
+        trace_struct.value = TaintedUtils::UString2string(firstString);
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+	tainted = firstString.isTainted();
+    }
+#endif
     SegmentedString segmentedString = ustringToString(firstString);
     if (size != 1) {
         if (!size)
@@ -145,15 +173,39 @@ static inline void documentWrite(ExecState* exec, HTMLDocument* document, Newlin
         else {
             for (size_t i = 1; i < size; ++i) {
                 UString subsequentString = exec->argument(i).toString(exec);
+#if defined(JSC_TAINTED)
+	        unsigned int c_tainted = 0;
+    		if (subsequentString.isTainted()) {
+		    c_tainted = subsequentString.isTainted();
+		}
+		if (c_tainted) {
+		    TaintedStructure trace_struct;
+		    trace_struct.taintedno = c_tainted;
+		    trace_struct.internalfunc = "documentWrite";
+		    trace_struct.jsfunc = "document.write/writeln";
+		    trace_struct.action = "sink";
+		    trace_struct.value = TaintedUtils::UString2string(subsequentString);
+
+		    TaintedTrace* trace = TaintedTrace::getInstance();
+		    trace->addTaintedTrace(trace_struct);
+		    tainted = c_tainted;
+    		}
+#endif
                 segmentedString.append(SegmentedString(ustringToString(subsequentString)));
             }
         }
     }
+
     if (addNewline)
         segmentedString.append(SegmentedString(String(&newlineCharacter, 1)));
 
     Document* activeDocument = asJSDOMWindow(exec->lexicalGlobalObject())->impl()->document();
     document->write(segmentedString, activeDocument);
+#if defined(JSC_TAINTED)
+    if (tainted) {
+	activeDocument->setTainted(tainted);
+    }
+#endif
 }
 
 JSValue JSHTMLDocument::write(ExecState* exec)

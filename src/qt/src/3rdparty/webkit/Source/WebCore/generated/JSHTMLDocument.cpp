@@ -18,6 +18,13 @@
     Boston, MA 02110-1301, USA.
 */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSHTMLDocument.h"
 
@@ -33,6 +40,13 @@
 #include <runtime/Error.h>
 #include <runtime/JSString.h>
 #include <wtf/GetPtr.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace JSC;
 
@@ -442,6 +456,47 @@ EncodedJSValue JSC_HOST_CALL jsHTMLDocumentPrototypeFunctionWrite(ExecState* exe
     if (!thisValue.inherits(&JSHTMLDocument::s_info))
         return throwVMTypeError(exec);
     JSHTMLDocument* castedThis = static_cast<JSHTMLDocument*>(asObject(thisValue));
+#if defined(JSC_TAINTED)
+/*
+if we comment out the following code segement and move the detection to bindings/js/JSHTMLDocumentCustom.cpp
+one of the test case like below cannot be detected anymore. need to investigate the reason behind.
+document.write("hello"+document.location.href.substring(document.location.href.indexOf("default=")+8));\
+
+the guess is the following code does not cover the primitive string.
+*/
+    JSValue s = exec->argument(0);
+    if (s.isString() && s.isTainted()) {
+        HTMLDocument* d1 = static_cast<HTMLDocument*>(castedThis->impl());
+        d1->setTainted(s.isTainted());
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = s.isTainted();
+	trace_struct.internalfunc = "jsHTMLDocumentPrototypeFunctionWrite";
+	trace_struct.jsfunc = "document.write";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+    if (s.inherits(&StringObject::s_info)) {
+        unsigned int tainted = asStringObject(s)->isTainted();
+        if (tainted) {
+            HTMLDocument* d2 = static_cast<HTMLDocument*>(castedThis->impl());
+            d2->setTainted(tainted);
+
+	    TaintedStructure trace_struct;
+	    trace_struct.taintedno = tainted;
+	    trace_struct.internalfunc = "jsHTMLDocumentPrototypeFunctionWrite";
+	    trace_struct.jsfunc = "document.write";
+	    trace_struct.action = "sink";
+	    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+	    TaintedTrace* trace = TaintedTrace::getInstance();
+	    trace->addTaintedTrace(trace_struct);
+        }
+    }
+#endif
     return JSValue::encode(castedThis->write(exec));
 }
 
@@ -451,6 +506,40 @@ EncodedJSValue JSC_HOST_CALL jsHTMLDocumentPrototypeFunctionWriteln(ExecState* e
     if (!thisValue.inherits(&JSHTMLDocument::s_info))
         return throwVMTypeError(exec);
     JSHTMLDocument* castedThis = static_cast<JSHTMLDocument*>(asObject(thisValue));
+#if defined(JSC_TAINTED)
+    JSValue s = exec->argument(0);
+    if (s.isString() && s.isTainted() > 0) {
+        HTMLDocument* d1 = static_cast<HTMLDocument*>(castedThis->impl());
+        d1->setTainted(s.isTainted());
+
+	TaintedStructure trace_struct;
+	trace_struct.taintedno = s.isTainted();
+	trace_struct.internalfunc = "jsHTMLDocumentPrototypeFunctionWriteln";
+	trace_struct.jsfunc = "document.writeln";
+	trace_struct.action = "sink";
+	trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+	TaintedTrace* trace = TaintedTrace::getInstance();
+	trace->addTaintedTrace(trace_struct);
+    }
+    if (s.inherits(&StringObject::s_info)) {
+	unsigned int tainted = asStringObject(s)->isTainted();
+        if (tainted) {
+            HTMLDocument* d2 = static_cast<HTMLDocument*>(castedThis->impl());
+            d2->setTainted(tainted);
+
+	    TaintedStructure trace_struct;
+	    trace_struct.taintedno = tainted;
+	    trace_struct.internalfunc = "jsHTMLDocumentPrototypeFunctionWriteln";
+	    trace_struct.jsfunc = "document.writeln";
+	    trace_struct.action = "sink";
+	    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+	    TaintedTrace* trace = TaintedTrace::getInstance();
+	    trace->addTaintedTrace(trace_struct);
+        }
+    }
+#endif
     return JSValue::encode(castedThis->writeln(exec));
 }
 

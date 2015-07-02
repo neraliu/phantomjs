@@ -20,6 +20,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSString.h"
 
@@ -260,6 +267,9 @@ JSValue JSString::replaceCharacter(ExecState* exec, UChar character, const UStri
 
 JSString* JSString::getIndexSlowCase(ExecState* exec, unsigned i)
 {
+#if defined(JSC_TAINTED_DEBUG)
+// do we need to support rope implementation?
+#endif
     ASSERT(isRope());
     resolveRope(exec);
     // Return a safe no-value result, this should never be used, since the excetion will be thrown.
@@ -294,6 +304,9 @@ double JSString::toNumber(ExecState* exec) const
 
 UString JSString::toString(ExecState* exec) const
 {
+#if defined(JSC_TAINTED_DEBUG)
+// std::cerr << "JSString::toString" << std::endl;
+#endif
     return value(exec);
 }
 

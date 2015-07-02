@@ -21,6 +21,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSObject.h"
 
@@ -480,6 +487,9 @@ double JSObject::toNumber(ExecState* exec) const
 
 UString JSObject::toString(ExecState* exec) const
 {
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "JSObject::toString()" << std::endl;
+#endif
     JSValue primitive = toPrimitive(exec, PreferString);
     if (exec->hadException())
         return "";

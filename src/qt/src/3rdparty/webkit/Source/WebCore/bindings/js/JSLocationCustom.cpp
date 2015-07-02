@@ -20,11 +20,25 @@
  *  USA
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "JSLocationCustom.h"
 
 #include "Location.h"
 #include <runtime/JSFunction.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 using namespace JSC;
 
@@ -271,7 +285,26 @@ JSValue JSLocation::toStringFunction(ExecState* exec)
     if (!frame || !allowsAccessFromFrame(exec, frame))
         return jsUndefined();
 
+#if defined(JSC_TAINTED)
+    JSValue s = jsString(exec, impl()->toString());
+    TaintedCounter* counter = TaintedCounter::getInstance();
+    unsigned int tainted = counter->getCount();
+    s.setTainted(tainted);
+
+    TaintedStructure trace_struct;
+    trace_struct.taintedno = tainted;
+    trace_struct.internalfunc = "JSLocation::toStringFunction";
+    trace_struct.jsfunc = "";
+    trace_struct.action = "source";
+    trace_struct.value = TaintedUtils::UString2string(s.toString(exec));
+
+    TaintedTrace* trace = TaintedTrace::getInstance();
+    trace->addTaintedTrace(trace_struct);
+
+    return s;
+#else
     return jsString(exec, impl()->toString());
+#endif
 }
 
 bool JSLocationPrototype::putDelegate(ExecState* exec, const Identifier& propertyName, JSValue, PutPropertySlot&)

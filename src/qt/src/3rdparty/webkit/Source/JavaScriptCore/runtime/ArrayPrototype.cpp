@@ -21,6 +21,13 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #include "config.h"
 #include "ArrayPrototype.h"
 
@@ -36,6 +43,13 @@
 #include <algorithm>
 #include <wtf/Assertions.h>
 #include <wtf/HashSet.h>
+
+#if defined(JSC_TAINTED)
+#include "TaintedCounter.h"
+#include "TaintedTrace.h"
+#include "TaintedUtils.h"
+#include <sstream>
+#endif
 
 namespace JSC {
 
@@ -166,6 +180,10 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncToString(ExecState* exec)
 {
     JSValue thisValue = exec->hostThisValue();
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+#endif
+
     bool isRealArray = isJSArray(&exec->globalData(), thisValue);
     if (!isRealArray && !thisValue.inherits(&JSArray::s_info))
         return throwVMTypeError(exec);
@@ -197,7 +215,19 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncToString(ExecState* exec)
         
         if (element.isUndefinedOrNull())
             continue;
-        
+
+#if defined(JSC_TAINTED)
+	if (!tainted && element.isString() && element.isTainted()) {
+	     	tainted = element.isTainted();
+	}
+	if (!tainted && element.inherits(&StringObject::s_info) && asStringObject(element)->isTainted()) {
+		tainted = asStringObject(element)->isTainted();
+	}
+	if (!tainted && element.isObject()) {
+        	UString s = element.toString(exec);
+		if (s.isTainted()) tainted = s.isTainted();
+    	}
+#endif
         UString str = element.toString(exec);
         strBuffer[k] = str.impl();
         totalSize += str.length();
@@ -223,7 +253,29 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncToString(ExecState* exec)
             buffer.append(rep->characters(), rep->length());
     }
     ASSERT(buffer.size() == totalSize);
+#if defined(JSC_TAINTED)
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "ArrayProtocol::arrayProtoFuncToString:" << tainted << std::endl;
+#endif
+    JSValue v = jsString(exec, UString::adopt(buffer));
+
+    if (tainted) {
+        v.setTainted(tainted);
+
+	TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "arrayProtoFuncToString";
+        trace_struct.jsfunc = "Array.toString";
+        trace_struct.action = "propagate";
+        trace_struct.value = TaintedUtils::UString2string(v.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+    return JSValue::encode(v);
+#else
     return JSValue::encode(jsString(exec, UString::adopt(buffer)));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL arrayProtoFuncToLocaleString(ExecState* exec)
@@ -276,11 +328,24 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncJoin(ExecState* exec)
     if (EncodedJSValue earlyReturnValue = checker.earlyReturnValue())
         return earlyReturnValue;
 
+#if defined(JSC_TAINTED)
+    unsigned int tainted = 0;
+#endif
     JSStringBuilder strBuffer;
 
+#if defined(JSC_TAINTED)
+    UString separator;
+    if (!exec->argument(0).isUndefined()) {
+        separator = exec->argument(0).toString(exec);
+        if (separator.isTainted()) {
+	    tainted = separator.isTainted();
+        }
+    }
+#else
     UString separator;
     if (!exec->argument(0).isUndefined())
         separator = exec->argument(0).toString(exec);
+#endif
 
     unsigned k = 0;
     if (isJSArray(&exec->globalData(), thisObj)) {
@@ -290,8 +355,17 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncJoin(ExecState* exec)
             if (!array->canGetIndex(k)) 
                 goto skipFirstLoop;
             JSValue element = array->getIndex(k);
+#if defined(JSC_TAINTED)
+            if (!element.isUndefinedOrNull()) {
+                if (element.isTainted()) {
+			tainted = element.isTainted();
+		}
+                strBuffer.append(element.toString(exec));
+            }
+#else
             if (!element.isUndefinedOrNull())
                 strBuffer.append(element.toString(exec));
+#endif
             k++;
         }
 
@@ -301,8 +375,17 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncJoin(ExecState* exec)
                     break;
                 strBuffer.append(',');
                 JSValue element = array->getIndex(k);
+#if defined(JSC_TAINTED)
+                if (!element.isUndefinedOrNull()) {
+                    if (element.isTainted()) {
+			tainted = element.isTainted();
+		    }
+                    strBuffer.append(element.toString(exec));
+	        }
+#else
                 if (!element.isUndefinedOrNull())
                     strBuffer.append(element.toString(exec));
+#endif
             }
         } else {
             for (; k < length; k++) {
@@ -310,8 +393,17 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncJoin(ExecState* exec)
                     break;
                 strBuffer.append(separator);
                 JSValue element = array->getIndex(k);
+#if defined(JSC_TAINTED)
+                if (!element.isUndefinedOrNull()) {
+                    if (element.isTainted()) {
+			tainted = element.isTainted();
+		    }
+                    strBuffer.append(element.toString(exec));
+      	        }
+#else
                 if (!element.isUndefinedOrNull())
                     strBuffer.append(element.toString(exec));
+#endif
             }
         }
     }
@@ -325,11 +417,47 @@ EncodedJSValue JSC_HOST_CALL arrayProtoFuncJoin(ExecState* exec)
         }
 
         JSValue element = thisObj->get(exec, k);
+#if defined(JSC_TAINTED)
+        if (!element.isUndefinedOrNull()) {
+	    if (element.isTainted()) {
+		tainted = element.isTainted();
+	    }
+            strBuffer.append(element.toString(exec));
+        }
+#else
         if (!element.isUndefinedOrNull())
             strBuffer.append(element.toString(exec));
+#endif
     }
 
+#if defined(JSC_TAINTED)
+    JSValue v = strBuffer.build(exec);
+    if (tainted) {
+	v.setTainted(tainted); 
+    } else {
+	v.setTainted(0);
+    }
+
+    if (tainted) {
+	TaintedStructure trace_struct;
+        trace_struct.taintedno = tainted;
+        trace_struct.internalfunc = "arrayProtoFuncJoin";
+        trace_struct.jsfunc = "Array.join";
+        trace_struct.action = "propagate";
+        trace_struct.value = TaintedUtils::UString2string(v.toString(exec));
+
+        TaintedTrace* trace = TaintedTrace::getInstance();
+        trace->addTaintedTrace(trace_struct);
+    }
+
+#if defined(JSC_TAINTED_DEBUG)
+std::cerr << "arrayProtoFuncJoin:" << tainted << std::endl;
+#endif
+
+    return JSValue::encode(v);
+#else
     return JSValue::encode(strBuffer.build(exec));
+#endif
 }
 
 EncodedJSValue JSC_HOST_CALL arrayProtoFuncConcat(ExecState* exec)

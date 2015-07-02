@@ -26,6 +26,12 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the BSD license.
+ *
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ */
 #include "config.h"
 #include "JSGlobalData.h"
 
@@ -121,7 +127,17 @@ void JSGlobalData::storeVPtrs()
 {
     // Enough storage to fit a JSArray, JSByteArray, JSString, or JSFunction.
     // COMPILE_ASSERTS below check that this is true.
+#if defined(JSC_TAINTED)
+
+#if defined(JSC_TAINTED_EXTENDED)
     char storage[64];
+#elif defined(JSC_TAINTED_HASHMAP)
+    char storage[64];
+#endif
+
+#else
+    char storage[64];
+#endif
 
     COMPILE_ASSERT(sizeof(JSArray) <= sizeof(storage), sizeof_JSArray_must_be_less_than_storage);
     JSCell* jsArray = new (storage) JSArray(JSArray::VPtrStealingHack);

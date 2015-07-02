@@ -18,8 +18,17 @@
  *
  */
 
+/*
+ * Portions of this code are Copyright (C) 2014 Yahoo! Inc. Licensed 
+ * under the LGPL license.
+ * 
+ * Author: Nera Liu <neraliu@yahoo-inc.com>
+ *
+ */
 #ifndef StringObject_h
 #define StringObject_h
+
+#include "config.h"
 
 #include "JSWrapperObject.h"
 #include "JSString.h"
@@ -49,6 +58,17 @@ namespace JSC {
         {
             return Structure::create(globalData, prototype, TypeInfo(ObjectType, StructureFlags), AnonymousSlotCount, &s_info);
         }
+#if defined(JSC_TAINTED)
+        unsigned int isTainted() const
+        {
+	    return internalValue()->isTainted();
+        }
+
+        void setTainted(unsigned int tainted)
+        {
+	    internalValue()->setTainted(tainted);
+        }
+#endif
 
     protected:
         static const unsigned StructureFlags = OverridesGetOwnPropertySlot | OverridesGetPropertyNames | JSWrapperObject::StructureFlags;
